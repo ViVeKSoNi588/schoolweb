@@ -695,6 +695,7 @@ app.get('/api/feedback/:id/mark-read/:token', async (req, res) => {
       </html>
     `);
   } catch (error) {
+    console.error('Error marking feedback as read:', error);
     res.status(500).send(`
       <html>
         <head><title>Error</title></head>
@@ -856,6 +857,12 @@ app.get('/api/admin/stats', authMiddleware, async (req, res) => {
 });
 
 // ============ START SERVER ============
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+}
+
+// Export for Vercel serverless
+export default app;
