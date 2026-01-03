@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import Navbar from './nav';
 import ImageCarousel from './scroll';
-
-const API_URL = 'http://localhost:5000/api';
+import API_URL from '../config';
 
 // Default content moved outside component
 const defaultContent = {

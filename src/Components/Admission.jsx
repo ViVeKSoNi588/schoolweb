@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Navbar from './nav';
+import API_URL from '../config';
 
 const admissionData = {
   process: [
@@ -61,7 +62,7 @@ function Admission() {
     setStatus({ type: '', message: '' });
 
     try {
-      const res = await fetch('http://localhost:5000/api/feedback', {
+      const res = await fetch(`${API_URL}/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

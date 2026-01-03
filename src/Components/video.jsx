@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import Content from './Content';
-
-const API_URL = 'http://localhost:5000/api';
+import API_URL from '../config';
 
 function VideoPlayer() {
   const [videos, setVideos] = useState([]);

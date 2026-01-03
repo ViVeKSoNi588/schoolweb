@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-
-const API_URL = 'http://localhost:5000/api';
+import API_URL from '../config';
 
 // Reusable Content component
 // Usage: <Content id="unique_content_id" />
