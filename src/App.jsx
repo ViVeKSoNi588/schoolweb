@@ -10,6 +10,7 @@ import BulletinBoard from './Components/BulletinBoard'
 import PrePrimary from './Components/PrePrimary'
 import Contact from './Components/Contact'
 import Admission from './Components/Admission'
+import Gallery from './Components/gallary'
 
 
 function App() {
@@ -130,6 +131,7 @@ function App() {
         <Route path="/preprimary" element={<PrePrimary />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/admissions" element={<Admission />} />
+        <Route path="/gallery" element={<Gallery />} />
         <Route path="/admin-secret-panel" element={<AdminPanel />} />
       </Routes>
     </Router>

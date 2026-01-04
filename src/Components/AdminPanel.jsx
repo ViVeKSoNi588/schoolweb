@@ -47,6 +47,14 @@ function AdminPanel() {
   // Feedback management
   const [feedbackFilter, setFeedbackFilter] = useState('all'); // 'all', 'unread', 'read'
 
+  // Gallery management
+  const [galleryPhotos, setGalleryPhotos] = useState([]);
+  const [newGalleryPhoto, setNewGalleryPhoto] = useState({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
+  const [editingGalleryPhoto, setEditingGalleryPhoto] = useState(null);
+  const [galleryUploadMode, setGalleryUploadMode] = useState('url'); // 'url' or 'upload'
+  const [galleryUploadPreview, setGalleryUploadPreview] = useState('');
+  const [galleryCategory, setGalleryCategory] = useState('all'); // filter for viewing
+
   // Helper functions for fetching data
   const fetchCollections = async (authToken) => {
     try {
@@ -86,6 +94,21 @@ function AdminPanel() {
     }
   };
 
+  // Fetch gallery photos
+  const fetchGalleryPhotos = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/gallery`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGalleryPhotos(data);
+      }
+    } catch (error) {
+      console.error('Error fetching gallery:', error);
+    }
+  };
+
   // Verify token on mount and load data
   useEffect(() => {
     const verifyAndLoad = async () => {
@@ -118,6 +141,14 @@ function AdminPanel() {
   useEffect(() => {
     if (activeTab === 'videos' && isLoggedIn && token) {
       fetchVideos();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isLoggedIn, token]);
+
+  // Auto-load gallery when switching to gallery tab
+  useEffect(() => {
+    if (activeTab === 'gallery' && isLoggedIn && token) {
+      fetchGalleryPhotos();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isLoggedIn, token]);
@@ -831,7 +862,7 @@ function AdminPanel() {
       <div className="bg-gray-800/50 border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex gap-1">
-            {['database', 'videos', 'import-export'].map((tab) => (
+            {['database', 'videos', 'gallery', 'import-export'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -843,6 +874,7 @@ function AdminPanel() {
               >
                 {tab === 'database' && '🗄️ Database'}
                 {tab === 'videos' && '🎬 Videos'}
+                {tab === 'gallery' && '🖼️ Gallery'}
                 {tab === 'import-export' && '📦 Import/Export'}
               </button>
             ))}
@@ -1787,6 +1819,298 @@ function AdminPanel() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============ GALLERY TAB ============ */}
+        {activeTab === 'gallery' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Add New Photo Form */}
+            <div className="bg-gray-800 p-6 rounded-xl">
+              <h3 className="text-lg font-bold text-white mb-4">
+                {editingGalleryPhoto ? '✏️ Edit Photo' : '➕ Add New Photo'}
+              </h3>
+              
+              {/* Upload Mode Toggle */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => { setGalleryUploadMode('url'); setGalleryUploadPreview(''); }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    galleryUploadMode === 'url' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  🔗 URL
+                </button>
+                <button
+                  onClick={() => { setGalleryUploadMode('upload'); setNewGalleryPhoto(prev => ({ ...prev, src: '' })); }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    galleryUploadMode === 'upload' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  📤 Upload
+                </button>
+              </div>
+
+              {galleryUploadMode === 'url' ? (
+                <input
+                  type="text"
+                  placeholder="Image URL"
+                  value={newGalleryPhoto.src}
+                  onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, src: e.target.value })}
+                  className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+                />
+              ) : (
+                <div className="mb-3">
+                  <label className="block w-full bg-gray-700 text-white p-3 rounded-lg cursor-pointer hover:bg-gray-600 transition-colors text-center">
+                    📷 Choose Image File
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setGalleryUploadPreview(reader.result);
+                            setNewGalleryPhoto({ ...newGalleryPhoto, src: reader.result });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                  {galleryUploadPreview && (
+                    <img 
+                      src={galleryUploadPreview} 
+                      alt="Preview" 
+                      className="mt-3 w-full h-40 object-cover rounded-lg"
+                    />
+                  )}
+                </div>
+              )}
+
+              <input
+                type="text"
+                placeholder="Photo Title *"
+                value={newGalleryPhoto.title}
+                onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, title: e.target.value })}
+                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+              />
+
+              <select
+                value={newGalleryPhoto.category}
+                onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, category: e.target.value })}
+                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+              >
+                <option value="events">🎉 School Events</option>
+                <option value="sports">⚽ Sports Day</option>
+                <option value="cultural">🎭 Cultural Programs</option>
+                <option value="classroom">📚 Classroom Activities</option>
+                <option value="campus">🏫 Campus</option>
+                <option value="other">📷 Other</option>
+              </select>
+
+              <textarea
+                placeholder="Description (optional)"
+                value={newGalleryPhoto.description}
+                onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, description: e.target.value })}
+                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-20 resize-none"
+              />
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <input
+                  type="number"
+                  placeholder="Order"
+                  value={newGalleryPhoto.order}
+                  onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, order: parseInt(e.target.value) || 0 })}
+                  className="bg-gray-700 text-white p-3 rounded-lg"
+                />
+                <label className="flex items-center gap-2 bg-gray-700 p-3 rounded-lg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newGalleryPhoto.isActive}
+                    onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, isActive: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-white text-sm">Active</span>
+                </label>
+              </div>
+
+              <div className="flex gap-3">
+                {editingGalleryPhoto ? (
+                  <>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API_URL}/admin/gallery/${editingGalleryPhoto._id}`, {
+                            method: 'PUT',
+                            headers: { 
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${token}` 
+                            },
+                            body: JSON.stringify(newGalleryPhoto)
+                          });
+                          if (res.ok) {
+                            setEditingGalleryPhoto(null);
+                            setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
+                            setGalleryUploadPreview('');
+                            fetchGalleryPhotos();
+                          }
+                        } catch (error) {
+                          console.error('Error updating photo:', error);
+                        }
+                      }}
+                      className="flex-1 bg-green-600 hover:bg-green-700 py-3 rounded-lg font-medium transition-colors"
+                    >
+                      💾 Save Changes
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingGalleryPhoto(null);
+                        setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
+                        setGalleryUploadPreview('');
+                      }}
+                      className="flex-1 bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-medium transition-colors"
+                    >
+                      ❌ Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      if (!newGalleryPhoto.src || !newGalleryPhoto.title) {
+                        alert('Please provide image and title');
+                        return;
+                      }
+                      try {
+                        const endpoint = galleryUploadMode === 'upload' 
+                          ? `${API_URL}/admin/gallery/upload`
+                          : `${API_URL}/admin/gallery`;
+                        const body = galleryUploadMode === 'upload'
+                          ? { imageData: newGalleryPhoto.src, ...newGalleryPhoto }
+                          : newGalleryPhoto;
+                        
+                        const res = await fetch(endpoint, {
+                          method: 'POST',
+                          headers: { 
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${token}` 
+                          },
+                          body: JSON.stringify(body)
+                        });
+                        if (res.ok) {
+                          setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
+                          setGalleryUploadPreview('');
+                          fetchGalleryPhotos();
+                        }
+                      } catch (error) {
+                        console.error('Error adding photo:', error);
+                      }
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-medium transition-colors"
+                  >
+                    ➕ Add Photo
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Gallery Photos List */}
+            <div className="lg:col-span-2 bg-gray-800 p-6 rounded-xl">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-white">🖼️ Gallery Photos ({galleryPhotos.length})</h3>
+                <select
+                  value={galleryCategory}
+                  onChange={(e) => setGalleryCategory(e.target.value)}
+                  className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm"
+                >
+                  <option value="all">All Categories</option>
+                  <option value="events">🎉 Events</option>
+                  <option value="sports">⚽ Sports</option>
+                  <option value="cultural">🎭 Cultural</option>
+                  <option value="classroom">📚 Classroom</option>
+                  <option value="campus">🏫 Campus</option>
+                  <option value="other">📷 Other</option>
+                </select>
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
+                {galleryPhotos
+                  .filter(photo => galleryCategory === 'all' || photo.category === galleryCategory)
+                  .map((photo) => (
+                  <div key={photo._id} className={`relative group rounded-lg overflow-hidden ${!photo.isActive ? 'opacity-50' : ''}`}>
+                    <img 
+                      src={photo.src} 
+                      alt={photo.title} 
+                      className="w-full h-32 object-cover"
+                    />
+                    {/* Overlay with actions */}
+                    <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+                      <p className="text-white text-xs font-medium text-center line-clamp-2">{photo.title}</p>
+                      <span className="text-xs px-2 py-0.5 bg-blue-600 rounded capitalize">{photo.category}</span>
+                      <div className="flex gap-1 mt-1">
+                        <button
+                          onClick={() => {
+                            setEditingGalleryPhoto(photo);
+                            setNewGalleryPhoto({
+                              src: photo.src,
+                              title: photo.title,
+                              category: photo.category,
+                              description: photo.description || '',
+                              order: photo.order || 0,
+                              isActive: photo.isActive
+                            });
+                            if (photo.isUploaded) {
+                              setGalleryUploadMode('upload');
+                              setGalleryUploadPreview(photo.src);
+                            } else {
+                              setGalleryUploadMode('url');
+                            }
+                          }}
+                          className="bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded text-xs"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (confirm('Delete this photo?')) {
+                              try {
+                                await fetch(`${API_URL}/admin/gallery/${photo._id}`, {
+                                  method: 'DELETE',
+                                  headers: { Authorization: `Bearer ${token}` }
+                                });
+                                fetchGalleryPhotos();
+                              } catch (error) {
+                                console.error('Error deleting photo:', error);
+                              }
+                            }
+                          }}
+                          className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                    {/* Status badge */}
+                    {!photo.isActive && (
+                      <span className="absolute top-1 right-1 text-xs bg-red-600 px-1 rounded">Hidden</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {galleryPhotos.filter(photo => galleryCategory === 'all' || photo.category === galleryCategory).length === 0 && (
+                <div className="text-center py-10 text-gray-400">
+                  <p className="text-4xl mb-2">📷</p>
+                  <p>No photos in this category</p>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -211,6 +211,20 @@ const feedbackSchema = new mongoose.Schema({
 feedbackSchema.index({ readToken: 1 }, { unique: true, sparse: true });
 const Feedback = mongoose.model('Feedback', feedbackSchema);
 
+// Gallery Schema (for gallery photos)
+const gallerySchema = new mongoose.Schema({
+  src: { type: String, required: true }, // base64 data or URL
+  title: { type: String, required: true },
+  category: { type: String, required: true, enum: ['events', 'sports', 'cultural', 'classroom', 'campus', 'other'] },
+  description: { type: String, default: '' },
+  isActive: { type: Boolean, default: true },
+  isUploaded: { type: Boolean, default: false }, // true if base64 uploaded image
+  mimeType: { type: String }, // image/jpeg, image/png, etc.
+  order: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
+});
+const Gallery = mongoose.model('Gallery', gallerySchema);
+
 // Auto-cleanup function: Delete feedback that was read more than 3 months ago
 const cleanupOldFeedback = async () => {
   try {
@@ -853,6 +867,148 @@ app.get('/api/admin/stats', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching stats', error: error.message });
+  }
+});
+
+// ============ PUBLIC GALLERY ROUTES ============
+
+// Get active gallery photos (public)
+app.get('/api/gallery', async (req, res) => {
+  try {
+    const { category } = req.query;
+    const filter = { isActive: true };
+    if (category && category !== 'all') {
+      filter.category = category;
+    }
+    const photos = await Gallery.find(filter).sort({ order: 1, createdAt: -1 });
+    res.json(photos);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching gallery photos', error: error.message });
+  }
+});
+
+// Get gallery categories with photo counts (public)
+app.get('/api/gallery/categories', async (req, res) => {
+  try {
+    const categories = await Gallery.aggregate([
+      { $match: { isActive: true } },
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]);
+    res.json(categories);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching categories', error: error.message });
+  }
+});
+
+// ============ ADMIN GALLERY ROUTES ============
+
+// Get ALL gallery photos (admin)
+app.get('/api/admin/gallery', authMiddleware, async (req, res) => {
+  try {
+    const photos = await Gallery.find().sort({ order: 1, createdAt: -1 });
+    res.json(photos);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching gallery photos', error: error.message });
+  }
+});
+
+// Add gallery photo (URL)
+app.post('/api/admin/gallery', authMiddleware, async (req, res) => {
+  try {
+    const { src, title, category, description, order, isActive } = req.body;
+    
+    if (!src || !title || !category) {
+      return res.status(400).json({ message: 'Source, title, and category are required' });
+    }
+    
+    const photo = new Gallery({
+      src,
+      title,
+      category,
+      description: description || '',
+      order: order || 0,
+      isActive: isActive !== false,
+      isUploaded: false
+    });
+    await photo.save();
+    res.status(201).json(photo);
+  } catch (error) {
+    res.status(400).json({ message: 'Error adding gallery photo', error: error.message });
+  }
+});
+
+// Upload gallery photo (base64)
+app.post('/api/admin/gallery/upload', authMiddleware, async (req, res) => {
+  try {
+    const { imageData, title, category, description, order, isActive } = req.body;
+    
+    if (!imageData || !imageData.startsWith('data:image/')) {
+      return res.status(400).json({ message: 'Invalid image data. Must be base64 encoded image.' });
+    }
+    
+    if (!title || !category) {
+      return res.status(400).json({ message: 'Title and category are required' });
+    }
+    
+    // Extract mime type from data URL
+    const mimeMatch = imageData.match(/^data:(image\/\w+);base64,/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    
+    const photo = new Gallery({
+      src: imageData,
+      title,
+      category,
+      description: description || '',
+      order: order || 0,
+      isActive: isActive !== false,
+      isUploaded: true,
+      mimeType
+    });
+    await photo.save();
+    res.status(201).json(photo);
+  } catch (error) {
+    res.status(400).json({ message: 'Error uploading gallery photo', error: error.message });
+  }
+});
+
+// Update gallery photo
+app.put('/api/admin/gallery/:id', authMiddleware, async (req, res) => {
+  try {
+    const photo = await Gallery.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!photo) {
+      return res.status(404).json({ message: 'Photo not found' });
+    }
+    res.json(photo);
+  } catch (error) {
+    res.status(400).json({ message: 'Error updating gallery photo', error: error.message });
+  }
+});
+
+// Delete gallery photo
+app.delete('/api/admin/gallery/:id', authMiddleware, async (req, res) => {
+  try {
+    const photo = await Gallery.findByIdAndDelete(req.params.id);
+    if (!photo) {
+      return res.status(404).json({ message: 'Photo not found' });
+    }
+    res.json({ message: 'Gallery photo deleted' });
+  } catch (error) {
+    res.status(400).json({ message: 'Error deleting gallery photo', error: error.message });
+  }
+});
+
+// Bulk delete gallery photos
+app.post('/api/admin/gallery/bulk-delete', authMiddleware, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'Photo IDs are required' });
+    }
+    const result = await Gallery.deleteMany({ _id: { $in: ids } });
+    res.json({ message: `${result.deletedCount} photos deleted` });
+  } catch (error) {
+    res.status(400).json({ message: 'Error deleting gallery photos', error: error.message });
   }
 });
 
