@@ -9,11 +9,11 @@ function BulletinBoard({ className = '' }) {
 
   // Default announcements if none from database
   const defaultAnnouncements = [
-    { _id: '1', title: 'Admissions Open', content: 'Admissions for 2026-27 academic year are now open!', type: 'important', date: new Date().toISOString() },
-    { _id: '2', title: 'Annual Day', content: 'Annual Day celebration on 15th February 2026', type: 'event', date: new Date().toISOString() },
-    { _id: '3', title: 'PTM Notice', content: 'Parent-Teacher Meeting scheduled for 20th January', type: 'notice', date: new Date().toISOString() },
-    { _id: '4', title: 'Holiday Notice', content: 'School will remain closed on 26th January - Republic Day', type: 'holiday', date: new Date().toISOString() },
-    { _id: '5', title: 'Sports Day', content: 'Inter-house Sports Competition on 10th February', type: 'event', date: new Date().toISOString() },
+    { _id: '1', title: 'Admissions Open', content: 'Admissions for Pre-Primary (Play Group to UKG) for 2026-27 are now open!', type: 'important', date: new Date().toISOString() },
+    { _id: '2', title: 'School Opening', content: 'Vatsalya International School is now accepting admissions for Pre-Primary classes', type: 'event', date: new Date().toISOString() },
+    { _id: '3', title: 'Visit Our Campus', content: 'Schedule a campus visit to see our child-friendly facilities and meet our teachers', type: 'notice', date: new Date().toISOString() },
+    { _id: '4', title: 'Early Bird Discount', content: 'Special discount for early admissions. Limited period offer!', type: 'important', date: new Date().toISOString() },
+    { _id: '5', title: 'Safe Environment', content: 'CCTV monitored campus with trained staff for complete safety of your child', type: 'notice', date: new Date().toISOString() },
   ];
 
   useEffect(() => {

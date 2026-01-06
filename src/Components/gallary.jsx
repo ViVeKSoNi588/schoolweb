@@ -2,6 +2,20 @@ import { useState, useEffect } from 'react';
 import Navbar from './nav';
 import API_URL from '../config';
 
+// Get base URL without /api for static files
+const BASE_URL = API_URL.replace('/api', '');
+
+// Helper to get full image URL
+const getImageUrl = (src) => {
+  if (!src) return '';
+  // If it's a full URL (http/https) or base64, return as-is
+  if (src.startsWith('http') || src.startsWith('data:')) {
+    return src;
+  }
+  // If it's a relative path (uploaded file), prepend base URL
+  return `${BASE_URL}${src}`;
+};
+
 function Gallery() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedImage, setSelectedImage] = useState(null);
@@ -135,7 +149,7 @@ function Gallery() {
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
                   <img
-                    src={image.src}
+                    src={getImageUrl(image.src)}
                     alt={image.title}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   />
@@ -220,7 +234,7 @@ function Gallery() {
             onClick={(e) => e.stopPropagation()}
           >
             <img
-              src={selectedImage.src}
+              src={getImageUrl(selectedImage.src)}
               alt={selectedImage.title}
               className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
             />

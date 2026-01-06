@@ -1,5 +1,5 @@
 /* eslint-env node */
-/* global process */
+/* global process, Buffer */
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -140,7 +141,16 @@ const sendFeedbackNotification = async (feedbackData, feedbackId, readToken) => 
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
+
+// Serve uploaded videos as static files
+app.use('/uploads', express.static(join(__dirname, 'uploads')));
+
+// Ensure uploads directory exists
+const uploadsDir = join(__dirname, 'uploads', 'videos');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 // MongoDB Connection
 mongoose.connect(MONGODB_URI)
@@ -159,13 +169,14 @@ const Admin = mongoose.model('Admin', adminSchema);
 
 // Image Schema (for carousel)
 const imageSchema = new mongoose.Schema({
-  src: { type: String, required: true }, // Can be URL or base64 data
+  src: { type: String, required: true }, // URL or file path
   alt: { type: String, required: true },
   order: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
-  isUploaded: { type: Boolean, default: false }, // true if base64 uploaded image
+  isUploaded: { type: Boolean, default: false }, // true if uploaded file
   mimeType: { type: String }, // image/jpeg, image/png, etc.
-  category: { type: String, default: 'home' }, // Category for filtering (home, preprimary, gallery, etc.)
+  filename: { type: String }, // Stored filename for uploaded images
+  category: { type: String, default: 'home' }, // Category for filtering
   createdAt: { type: Date, default: Date.now }
 });
 const Image = mongoose.model('Image', imageSchema);
@@ -174,12 +185,13 @@ const Image = mongoose.model('Image', imageSchema);
 const videoSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String },
-  src: { type: String, required: true }, // YouTube URL, video URL, or base64 data
-  type: { type: String, enum: ['youtube', 'uploaded', 'url'], default: 'youtube' },
+  src: { type: String, required: true }, // YouTube URL, video URL, or file path
+  type: { type: String, enum: ['youtube', 'facebook', 'instagram', 'vimeo', 'dailymotion', 'uploaded', 'url', 'direct'], default: 'youtube' },
   thumbnail: { type: String }, // Optional thumbnail image
   order: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
   mimeType: { type: String }, // video/mp4, video/webm, etc.
+  filename: { type: String }, // Stored filename for uploaded videos
   createdAt: { type: Date, default: Date.now }
 });
 const Video = mongoose.model('Video', videoSchema);
@@ -213,17 +225,55 @@ const Feedback = mongoose.model('Feedback', feedbackSchema);
 
 // Gallery Schema (for gallery photos)
 const gallerySchema = new mongoose.Schema({
-  src: { type: String, required: true }, // base64 data or URL
+  src: { type: String, required: true }, // file URL or external URL
   title: { type: String, required: true },
   category: { type: String, required: true, enum: ['events', 'sports', 'cultural', 'classroom', 'campus', 'other'] },
   description: { type: String, default: '' },
   isActive: { type: Boolean, default: true },
-  isUploaded: { type: Boolean, default: false }, // true if base64 uploaded image
+  isUploaded: { type: Boolean, default: false }, // true if uploaded image
   mimeType: { type: String }, // image/jpeg, image/png, etc.
+  filename: { type: String }, // Stored filename for uploaded images
   order: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
 });
 const Gallery = mongoose.model('Gallery', gallerySchema);
+
+// Curriculum Schema
+const curriculumSchema = new mongoose.Schema({
+  level: { type: String, required: true, unique: true }, // preprimary, primary, middle, secondary, senior
+  title: { type: String, required: true },
+  age: { type: String, default: '' },
+  description: { type: String, default: '' },
+  subjects: [{
+    name: { type: String, required: true },
+    icon: { type: String, default: '📚' },
+    details: { type: String }
+  }],
+  streams: [{ // Only for senior secondary
+    name: { type: String },
+    icon: { type: String },
+    subjects: [{ type: String }]
+  }],
+  highlights: [{ type: String }],
+  isActive: { type: Boolean, default: true },
+  order: { type: Number, default: 0 },
+  updatedAt: { type: Date, default: Date.now }
+});
+const Curriculum = mongoose.model('Curriculum', curriculumSchema);
+
+// Annual Event Schema
+const annualEventSchema = new mongoose.Schema({
+  month: { type: String, required: true },
+  date: { type: String, default: '' },
+  title: { type: String, required: true },
+  type: { type: String, required: true, enum: ['academic', 'holiday', 'exam', 'sports', 'cultural', 'event'] },
+  icon: { type: String, default: '📅' },
+  description: { type: String },
+  isActive: { type: Boolean, default: true },
+  order: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
+});
+const AnnualEvent = mongoose.model('AnnualEvent', annualEventSchema);
 
 // Auto-cleanup function: Delete feedback that was read more than 3 months ago
 const cleanupOldFeedback = async () => {
@@ -381,7 +431,7 @@ app.post('/api/admin/images', authMiddleware, async (req, res) => {
   }
 });
 
-// Upload image as base64
+// Upload image - saves to disk instead of storing base64
 app.post('/api/admin/images/upload', authMiddleware, async (req, res) => {
   try {
     const { imageData, alt, order, isActive, category } = req.body;
@@ -390,22 +440,47 @@ app.post('/api/admin/images/upload', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'Invalid image data. Must be base64 encoded image.' });
     }
     
-    // Extract mime type from data URL
-    const mimeMatch = imageData.match(/^data:(image\/\w+);base64,/);
+    // Extract mime type and extension
+    const mimeMatch = imageData.match(/^data:(image\/(\w+));base64,/);
     const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const extension = mimeMatch ? mimeMatch[2] : 'jpg';
+    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+    
+    // Generate unique filename
+    const filename = `img_${Date.now()}_${crypto.randomBytes(8).toString('hex')}.${extension}`;
+    const filepath = join(__dirname, 'uploads', 'images', filename);
+    
+    // Save image file to disk
+    fs.writeFileSync(filepath, Buffer.from(base64Data, 'base64'));
+    
+    // Store only the URL reference in MongoDB
+    const imageUrl = `/uploads/images/${filename}`;
     
     const image = new Image({
-      src: imageData,
+      src: imageUrl,
       alt: alt || 'Uploaded image',
       order: order || 0,
       isActive: isActive !== false,
       isUploaded: true,
       mimeType,
+      filename,
       category: category || 'home'
     });
     await image.save();
-    res.status(201).json(image);
+    
+    res.status(201).json({
+      _id: image._id,
+      src: image.src,
+      alt: image.alt,
+      order: image.order,
+      isActive: image.isActive,
+      isUploaded: image.isUploaded,
+      mimeType: image.mimeType,
+      category: image.category,
+      createdAt: image.createdAt
+    });
   } catch (error) {
+    console.error('Error uploading image:', error);
     res.status(400).json({ message: 'Error uploading image', error: error.message });
   }
 });
@@ -423,6 +498,19 @@ app.put('/api/admin/images/:id', authMiddleware, async (req, res) => {
 // Delete image
 app.delete('/api/admin/images/:id', authMiddleware, async (req, res) => {
   try {
+    const image = await Image.findById(req.params.id);
+    if (!image) {
+      return res.status(404).json({ message: 'Image not found' });
+    }
+    
+    // If it's an uploaded image, delete the file from disk
+    if (image.isUploaded && image.filename) {
+      const filepath = join(__dirname, 'uploads', 'images', image.filename);
+      if (fs.existsSync(filepath)) {
+        fs.unlinkSync(filepath);
+      }
+    }
+    
     await Image.findByIdAndDelete(req.params.id);
     res.json({ message: 'Image deleted' });
   } catch (error) {
@@ -484,7 +572,7 @@ app.post('/api/admin/videos', authMiddleware, async (req, res) => {
   }
 });
 
-// Upload video as base64
+// Upload video as base64 - NOW SAVES TO DISK
 app.post('/api/admin/videos/upload', authMiddleware, async (req, res) => {
   try {
     const { videoData, title, description, thumbnail, order, isActive } = req.body;
@@ -493,23 +581,50 @@ app.post('/api/admin/videos/upload', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'Invalid video data. Must be base64 encoded video.' });
     }
     
-    // Extract mime type from data URL
-    const mimeMatch = videoData.match(/^data:(video\/\w+);base64,/);
+    // Extract mime type and base64 data
+    const mimeMatch = videoData.match(/^data:(video\/(\w+));base64,/);
     const mimeType = mimeMatch ? mimeMatch[1] : 'video/mp4';
+    const extension = mimeMatch ? mimeMatch[2] : 'mp4';
+    const base64Data = videoData.replace(/^data:video\/\w+;base64,/, '');
+    
+    // Generate unique filename
+    const filename = `video_${Date.now()}_${crypto.randomBytes(8).toString('hex')}.${extension}`;
+    const filepath = join(__dirname, 'uploads', 'videos', filename);
+    
+    // Save video file to disk
+    fs.writeFileSync(filepath, Buffer.from(base64Data, 'base64'));
+    
+    // Store only the URL reference in MongoDB (not the video data)
+    const videoUrl = `/uploads/videos/${filename}`;
     
     const video = new Video({
       title: title || 'Uploaded video',
       description,
-      src: videoData,
+      src: videoUrl,  // Store URL, not base64
       type: 'uploaded',
       thumbnail,
       order: order || 0,
       isActive: isActive !== false,
-      mimeType
+      mimeType,
+      filename  // Store filename for deletion
     });
     await video.save();
-    res.status(201).json(video);
+    
+    // Return video without large data
+    res.status(201).json({
+      _id: video._id,
+      title: video.title,
+      description: video.description,
+      src: video.src,
+      type: video.type,
+      thumbnail: video.thumbnail,
+      order: video.order,
+      isActive: video.isActive,
+      mimeType: video.mimeType,
+      createdAt: video.createdAt
+    });
   } catch (error) {
+    console.error('Error uploading video:', error);
     res.status(400).json({ message: 'Error uploading video', error: error.message });
   }
 });
@@ -527,6 +642,19 @@ app.put('/api/admin/videos/:id', authMiddleware, async (req, res) => {
 // Delete video
 app.delete('/api/admin/videos/:id', authMiddleware, async (req, res) => {
   try {
+    const video = await Video.findById(req.params.id);
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found' });
+    }
+    
+    // If it's an uploaded video, delete the file from disk
+    if (video.type === 'uploaded' && video.filename) {
+      const filepath = join(__dirname, 'uploads', 'videos', video.filename);
+      if (fs.existsSync(filepath)) {
+        fs.unlinkSync(filepath);
+      }
+    }
+    
     await Video.findByIdAndDelete(req.params.id);
     res.json({ message: 'Video deleted' });
   } catch (error) {
@@ -938,7 +1066,7 @@ app.post('/api/admin/gallery', authMiddleware, async (req, res) => {
   }
 });
 
-// Upload gallery photo (base64)
+// Upload gallery photo - saves to disk instead of base64
 app.post('/api/admin/gallery/upload', authMiddleware, async (req, res) => {
   try {
     const { imageData, title, category, description, order, isActive } = req.body;
@@ -951,23 +1079,37 @@ app.post('/api/admin/gallery/upload', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'Title and category are required' });
     }
     
-    // Extract mime type from data URL
-    const mimeMatch = imageData.match(/^data:(image\/\w+);base64,/);
+    // Extract mime type and extension
+    const mimeMatch = imageData.match(/^data:(image\/(\w+));base64,/);
     const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const extension = mimeMatch ? mimeMatch[2] : 'jpg';
+    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+    
+    // Generate unique filename
+    const filename = `gallery_${Date.now()}_${crypto.randomBytes(8).toString('hex')}.${extension}`;
+    const filepath = join(__dirname, 'uploads', 'images', filename);
+    
+    // Save image file to disk
+    fs.writeFileSync(filepath, Buffer.from(base64Data, 'base64'));
+    
+    // Store only the URL reference in MongoDB
+    const imageUrl = `/uploads/images/${filename}`;
     
     const photo = new Gallery({
-      src: imageData,
+      src: imageUrl,
       title,
       category,
       description: description || '',
       order: order || 0,
       isActive: isActive !== false,
       isUploaded: true,
-      mimeType
+      mimeType,
+      filename
     });
     await photo.save();
     res.status(201).json(photo);
   } catch (error) {
+    console.error('Error uploading gallery photo:', error);
     res.status(400).json({ message: 'Error uploading gallery photo', error: error.message });
   }
 });
@@ -988,10 +1130,20 @@ app.put('/api/admin/gallery/:id', authMiddleware, async (req, res) => {
 // Delete gallery photo
 app.delete('/api/admin/gallery/:id', authMiddleware, async (req, res) => {
   try {
-    const photo = await Gallery.findByIdAndDelete(req.params.id);
+    const photo = await Gallery.findById(req.params.id);
     if (!photo) {
       return res.status(404).json({ message: 'Photo not found' });
     }
+    
+    // If it's an uploaded image, delete the file from disk
+    if (photo.isUploaded && photo.filename) {
+      const filepath = join(__dirname, 'uploads', 'images', photo.filename);
+      if (fs.existsSync(filepath)) {
+        fs.unlinkSync(filepath);
+      }
+    }
+    
+    await Gallery.findByIdAndDelete(req.params.id);
     res.json({ message: 'Gallery photo deleted' });
   } catch (error) {
     res.status(400).json({ message: 'Error deleting gallery photo', error: error.message });
@@ -1009,6 +1161,179 @@ app.post('/api/admin/gallery/bulk-delete', authMiddleware, async (req, res) => {
     res.json({ message: `${result.deletedCount} photos deleted` });
   } catch (error) {
     res.status(400).json({ message: 'Error deleting gallery photos', error: error.message });
+  }
+});
+
+// ============ PUBLIC CURRICULUM ROUTES ============
+
+// Get all curriculum levels (public)
+app.get('/api/curriculum', async (req, res) => {
+  try {
+    const curriculum = await Curriculum.find({ isActive: true }).sort({ order: 1 });
+    res.json(curriculum);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching curriculum', error: error.message });
+  }
+});
+
+// Get curriculum by level (public)
+app.get('/api/curriculum/:level', async (req, res) => {
+  try {
+    const curriculum = await Curriculum.findOne({ level: req.params.level, isActive: true });
+    res.json(curriculum);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching curriculum', error: error.message });
+  }
+});
+
+// ============ ADMIN CURRICULUM ROUTES ============
+
+// Get all curriculum (admin)
+app.get('/api/admin/curriculum', authMiddleware, async (req, res) => {
+  try {
+    const curriculum = await Curriculum.find().sort({ order: 1 });
+    res.json(curriculum);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching curriculum', error: error.message });
+  }
+});
+
+// Add/Update curriculum level (admin)
+app.post('/api/admin/curriculum', authMiddleware, async (req, res) => {
+  try {
+    const { level, title, age, description, subjects, streams, highlights, isActive, order } = req.body;
+    
+    if (!level || !title) {
+      return res.status(400).json({ message: 'Level and title are required' });
+    }
+    
+    const curriculum = await Curriculum.findOneAndUpdate(
+      { level },
+      { level, title, age, description, subjects: subjects || [], streams: streams || [], highlights: highlights || [], isActive: isActive !== false, order: order || 0, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json(curriculum);
+  } catch (error) {
+    res.status(400).json({ message: 'Error saving curriculum', error: error.message });
+  }
+});
+
+// Update curriculum by ID (admin)
+app.put('/api/admin/curriculum/:id', authMiddleware, async (req, res) => {
+  try {
+    const curriculum = await Curriculum.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    if (!curriculum) {
+      return res.status(404).json({ message: 'Curriculum not found' });
+    }
+    res.json(curriculum);
+  } catch (error) {
+    res.status(400).json({ message: 'Error updating curriculum', error: error.message });
+  }
+});
+
+// Delete curriculum by ID (admin)
+app.delete('/api/admin/curriculum/:id', authMiddleware, async (req, res) => {
+  try {
+    await Curriculum.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Curriculum deleted' });
+  } catch (error) {
+    res.status(400).json({ message: 'Error deleting curriculum', error: error.message });
+  }
+});
+
+// ============ PUBLIC ANNUAL EVENTS ROUTES ============
+
+// Get all annual events (public)
+app.get('/api/annual-events', async (req, res) => {
+  try {
+    const { month } = req.query;
+    const filter = { isActive: true };
+    if (month && month !== 'all') {
+      filter.month = month;
+    }
+    const events = await AnnualEvent.find(filter).sort({ order: 1 });
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching events', error: error.message });
+  }
+});
+
+// ============ ADMIN ANNUAL EVENTS ROUTES ============
+
+// Get all annual events (admin)
+app.get('/api/admin/annual-events', authMiddleware, async (req, res) => {
+  try {
+    const events = await AnnualEvent.find().sort({ order: 1 });
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching events', error: error.message });
+  }
+});
+
+// Add annual event (admin)
+app.post('/api/admin/annual-events', authMiddleware, async (req, res) => {
+  try {
+    const { month, date, title, type, icon, description, isActive, order } = req.body;
+    
+    if (!month || !title || !type) {
+      return res.status(400).json({ message: 'Month, title, and type are required' });
+    }
+    
+    const event = new AnnualEvent({
+      month,
+      date,
+      title,
+      type,
+      icon: icon || '📅',
+      description: description || '',
+      isActive: isActive !== false,
+      order: order || 0
+    });
+    await event.save();
+    res.status(201).json(event);
+  } catch (error) {
+    res.status(400).json({ message: 'Error adding event', error: error.message });
+  }
+});
+
+// Update annual event (admin)
+app.put('/api/admin/annual-events/:id', authMiddleware, async (req, res) => {
+  try {
+    const event = await AnnualEvent.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    res.json(event);
+  } catch (error) {
+    res.status(400).json({ message: 'Error updating event', error: error.message });
+  }
+});
+
+// Delete annual event (admin)
+app.delete('/api/admin/annual-events/:id', authMiddleware, async (req, res) => {
+  try {
+    await AnnualEvent.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Event deleted' });
+  } catch (error) {
+    res.status(400).json({ message: 'Error deleting event', error: error.message });
+  }
+});
+
+// Bulk add annual events (admin) - for initial setup
+app.post('/api/admin/annual-events/bulk', authMiddleware, async (req, res) => {
+  try {
+    const { events } = req.body;
+    if (!Array.isArray(events) || events.length === 0) {
+      return res.status(400).json({ message: 'Events array is required' });
+    }
+    const result = await AnnualEvent.insertMany(events);
+    res.json({ message: `${result.length} events added` });
+  } catch (error) {
+    res.status(400).json({ message: 'Error adding events', error: error.message });
   }
 });
 

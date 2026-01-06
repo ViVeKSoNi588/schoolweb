@@ -29,25 +29,42 @@ function Content({ id, className = '' }) {
     }
   }, [id, fetchContent]);
 
+  // Default content for home page video section
+  const defaultContent = {
+    title: 'Welcome to Vatsalya International School',
+    content: 'Where little minds blossom into bright futures! Our Pre-Primary program provides a nurturing environment for children aged 2.5 to 6 years.',
+    items: [
+      '🎨 Play-based Learning Approach',
+      '👨‍👩‍👧 Small Class Sizes for Personal Attention',
+      '🌱 Safe & Nurturing Environment',
+      '📚 Activity-Based Curriculum',
+      '🎭 Music, Art & Dance Programs'
+    ]
+  };
+
   if (loading) {
     return <div className="animate-pulse text-gray-400 text-sm">Loading...</div>;
   }
 
-  if (!content || (!content.title && !content.content && (!content.items || content.items.length === 0))) {
+  const displayContent = (content && (content.title || content.content || (content.items && content.items.length > 0))) 
+    ? content 
+    : (id === 'video_section_info' ? defaultContent : null);
+
+  if (!displayContent) {
     return null; // Don't render anything if no content
   }
 
   return (
     <div className={`bg-white rounded-xl p-6 text-center ${className}`}>
-      {content.title && (
-        <h2 className="text-3xl font-bold text-gray-800 mb-4">{content.title}</h2>
+      {displayContent.title && (
+        <h2 className="text-3xl font-bold text-gray-800 mb-4">{displayContent.title}</h2>
       )}
-      {content.content && (
-        <p className="text-lg text-gray-600 mb-4 whitespace-pre-line">{content.content}</p>
+      {displayContent.content && (
+        <p className="text-lg text-gray-600 mb-4 whitespace-pre-line">{displayContent.content}</p>
       )}
-      {content.items && content.items.length > 0 && (
+      {displayContent.items && displayContent.items.length > 0 && (
         <ul className="space-y-3 inline-block text-left">
-          {content.items.map((item, index) => (
+          {displayContent.items.map((item, index) => (
             <li key={index} className="flex items-start gap-2 text-gray-700 text-lg">
               <span className="text-blue-500 mt-1">•</span>
               <span>{item}</span>

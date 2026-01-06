@@ -23,6 +23,7 @@ function AdminPanel() {
   const [editingImage, setEditingImage] = useState(null);
   const [uploadMode, setUploadMode] = useState('url'); // 'url' or 'upload'
   const [uploadPreview, setUploadPreview] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
   
   // Video management
   const [newVideo, setNewVideo] = useState({ title: '', description: '', src: '', type: 'youtube', order: 0, isActive: true });
@@ -30,6 +31,9 @@ function AdminPanel() {
   const [videoUploadMode, setVideoUploadMode] = useState('youtube'); // 'youtube', 'url', or 'upload'
   const [videoUploadPreview, setVideoUploadPreview] = useState('');
   const [videoThumbnailPreview, setVideoThumbnailPreview] = useState('');
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videosLoading, setVideosLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   
   // Document management
   const [newDocument, setNewDocument] = useState('{}');
@@ -54,6 +58,39 @@ function AdminPanel() {
   const [galleryUploadMode, setGalleryUploadMode] = useState('url'); // 'url' or 'upload'
   const [galleryUploadPreview, setGalleryUploadPreview] = useState('');
   const [galleryCategory, setGalleryCategory] = useState('all'); // filter for viewing
+
+  // Curriculum management
+  const [curriculumData, setCurriculumData] = useState([]);
+  const [newCurriculum, setNewCurriculum] = useState({
+    level: 'preprimary',
+    title: '',
+    age: '',
+    description: '',
+    subjects: [],
+    streams: [],
+    highlights: [],
+    isActive: true,
+    order: 0
+  });
+  const [editingCurriculum, setEditingCurriculum] = useState(null);
+  const [newSubjectInput, setNewSubjectInput] = useState({ name: '', icon: '📚' });
+  const [newHighlightInput, setNewHighlightInput] = useState('');
+  const [newStreamInput, setNewStreamInput] = useState('');
+
+  // Annual Events management
+  const [annualEvents, setAnnualEvents] = useState([]);
+  const [newEvent, setNewEvent] = useState({
+    month: 'January',
+    date: '',
+    title: '',
+    type: 'event',
+    icon: '📅',
+    description: '',
+    isActive: true,
+    order: 0
+  });
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [eventMonthFilter, setEventMonthFilter] = useState('all');
 
   // Helper functions for fetching data
   const fetchCollections = async (authToken) => {
@@ -81,16 +118,25 @@ function AdminPanel() {
   // Fetch videos for video tab
   const fetchVideos = async () => {
     try {
+      setVideosLoading(true);
+      console.log('Fetching videos...');
       const res = await fetch(`${API_URL}/admin/videos`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      console.log('Fetch videos response status:', res.status);
       if (res.ok) {
         const data = await res.json();
+        console.log('Videos fetched:', data.length, 'videos');
         setDocuments(data);
         setSelectedCollection('videos');
+      } else {
+        const errorData = await res.json();
+        console.error('Failed to fetch videos:', errorData);
       }
     } catch (error) {
       console.error('Error fetching videos:', error);
+    } finally {
+      setVideosLoading(false);
     }
   };
 
@@ -106,6 +152,36 @@ function AdminPanel() {
       }
     } catch (error) {
       console.error('Error fetching gallery:', error);
+    }
+  };
+
+  // Fetch curriculum data
+  const fetchCurriculum = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/curriculum`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCurriculumData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching curriculum:', error);
+    }
+  };
+
+  // Fetch annual events
+  const fetchAnnualEvents = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/annual-events`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAnnualEvents(data);
+      }
+    } catch (error) {
+      console.error('Error fetching annual events:', error);
     }
   };
 
@@ -149,6 +225,22 @@ function AdminPanel() {
   useEffect(() => {
     if (activeTab === 'gallery' && isLoggedIn && token) {
       fetchGalleryPhotos();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isLoggedIn, token]);
+
+  // Auto-load curriculum when switching to curriculum tab
+  useEffect(() => {
+    if (activeTab === 'curriculum' && isLoggedIn && token) {
+      fetchCurriculum();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isLoggedIn, token]);
+
+  // Auto-load annual events when switching to events tab
+  useEffect(() => {
+    if (activeTab === 'events' && isLoggedIn && token) {
+      fetchAnnualEvents();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isLoggedIn, token]);
@@ -315,8 +407,8 @@ function AdminPanel() {
         alert('Please select a video file');
         return;
       }
-      if (file.size > 100 * 1024 * 1024) { // 100MB limit
-        alert('Video size must be less than 100MB');
+      if (file.size > 50 * 1024 * 1024) { // 50MB limit
+        alert('Video size must be less than 50MB. For larger videos, please upload to YouTube and paste the link.');
         return;
       }
       const reader = new FileReader();
@@ -352,7 +444,8 @@ function AdminPanel() {
     e.preventDefault();
     try {
       if (uploadMode === 'upload' && uploadPreview) {
-        // Upload base64 image
+        // Upload image file
+        setImageUploading(true);
         const res = await fetch(`${API_URL}/admin/images/upload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -364,6 +457,7 @@ function AdminPanel() {
             category: newImage.category
           })
         });
+        setImageUploading(false);
         if (res.ok) {
           setNewImage({ src: '', alt: '', order: 0, isActive: true, category: 'home' });
           setUploadPreview('');
@@ -385,6 +479,7 @@ function AdminPanel() {
         }
       }
     } catch {
+      setImageUploading(false);
       alert('Error adding image');
     }
   };
@@ -426,9 +521,17 @@ function AdminPanel() {
       return;
     }
     
+    setVideoUploading(true);
+    setUploadProgress(0);
+    
     try {
       if (videoUploadMode === 'upload' && videoUploadPreview) {
-        // Upload base64 video
+        // Simulate progress for better UX
+        const progressInterval = setInterval(() => {
+          setUploadProgress(prev => Math.min(prev + 10, 90));
+        }, 500);
+        
+        // Upload video file
         const res = await fetch(`${API_URL}/admin/videos/upload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -441,6 +544,10 @@ function AdminPanel() {
             isActive: newVideo.isActive !== false
           })
         });
+        
+        clearInterval(progressInterval);
+        setUploadProgress(100);
+        
         const data = await res.json();
         if (res.ok) {
           setNewVideo({ title: '', description: '', src: '', type: 'youtube', order: 0, isActive: true });
@@ -455,6 +562,7 @@ function AdminPanel() {
         // YouTube or URL mode
         if (!newVideo.src || !newVideo.src.trim()) {
           alert('Please provide a video URL');
+          setVideoUploading(false);
           return;
         }
         
@@ -467,8 +575,6 @@ function AdminPanel() {
           order: newVideo.order || 0,
           isActive: newVideo.isActive !== false
         };
-        
-        console.log('Sending video data:', videoData);
         
         const res = await fetch(`${API_URL}/admin/videos`, {
           method: 'POST',
@@ -488,41 +594,55 @@ function AdminPanel() {
     } catch (error) {
       console.error('Error adding video:', error);
       alert('Error adding video: ' + error.message);
+    } finally {
+      setVideoUploading(false);
+      setUploadProgress(0);
     }
   };
 
   const handleUpdateVideo = async () => {
     try {
+      console.log('Updating video:', editingVideo);
       const res = await fetch(`${API_URL}/admin/videos/${editingVideo._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(editingVideo)
       });
+      const data = await res.json();
+      console.log('Update response:', res.status, data);
       if (res.ok) {
+        alert('Video updated successfully!');
         setEditingVideo(null);
         fetchVideos();
       } else {
-        alert('Failed to update video');
+        alert('Failed to update video: ' + (data.message || JSON.stringify(data)));
       }
-    } catch {
-      alert('Error updating video');
+    } catch (error) {
+      console.error('Update error:', error);
+      alert('Error updating video: ' + error.message);
     }
   };
 
   const handleDeleteVideo = async (id) => {
     if (!confirm('Delete this video?')) return;
     try {
+      console.log('Deleting video with ID:', id);
+      console.log('Using token:', token ? 'Token exists' : 'No token');
       const res = await fetch(`${API_URL}/admin/videos/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
+      const data = await res.json();
+      console.log('Delete response:', res.status, data);
       if (res.ok) {
+        alert('Video deleted successfully!');
         fetchVideos();
       } else {
-        alert('Failed to delete video');
+        alert('Failed to delete video: ' + (data.message || JSON.stringify(data)));
       }
-    } catch {
-      alert('Error deleting video');
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Error deleting video: ' + error.message);
     }
   };
 
@@ -861,12 +981,12 @@ function AdminPanel() {
       {/* Tabs */}
       <div className="bg-gray-800/50 border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-1">
-            {['database', 'videos', 'gallery', 'import-export'].map((tab) => (
+          <div className="flex gap-1 overflow-x-auto">
+            {['database', 'videos', 'gallery', 'curriculum', 'events', 'import-export'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-3 text-sm font-medium transition-colors ${
+                className={`px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
                   activeTab === tab
                     ? 'text-blue-400 border-b-2 border-blue-400'
                     : 'text-gray-400 hover:text-white'
@@ -875,6 +995,8 @@ function AdminPanel() {
                 {tab === 'database' && '🗄️ Database'}
                 {tab === 'videos' && '🎬 Videos'}
                 {tab === 'gallery' && '🖼️ Gallery'}
+                {tab === 'curriculum' && '📚 Curriculum'}
+                {tab === 'events' && '📅 Calendar'}
                 {tab === 'import-export' && '📦 Import/Export'}
               </button>
             ))}
@@ -1021,19 +1143,30 @@ function AdminPanel() {
                       />
                       <button 
                         type="submit"
-                        disabled={uploadMode === 'upload' && !uploadPreview}
-                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded font-medium"
+                        disabled={(uploadMode === 'upload' && !uploadPreview) || imageUploading}
+                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded font-medium flex items-center justify-center gap-2"
                       >
-                        ➕ Add
+                        {imageUploading ? (
+                          <>
+                            <span className="animate-spin">⏳</span> Uploading...
+                          </>
+                        ) : (
+                          '➕ Add'
+                        )}
                       </button>
                     </div>
                   </form>
 
                   {/* Images Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-auto">
-                    {documents.map((image) => (
+                    {documents.map((image) => {
+                      // Build correct image URL
+                      const imgSrc = image.src?.startsWith('/uploads') 
+                        ? `${API_URL.replace('/api', '')}${image.src}` 
+                        : image.src;
+                      return (
                       <div key={image._id} className={`bg-gray-700/50 rounded-lg overflow-hidden ${!image.isActive && 'opacity-50'}`}>
-                        <img src={image.src} alt={image.alt} className="w-full h-32 object-cover" />
+                        <img src={imgSrc} alt={image.alt} className="w-full h-32 object-cover" />
                         
                         {editingImage?._id === image._id ? (
                           <div className="p-2 space-y-2">
@@ -1101,7 +1234,8 @@ function AdminPanel() {
                           </div>
                         )}
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </div>
               )}
@@ -1510,7 +1644,7 @@ function AdminPanel() {
             <h2 className="text-xl font-bold mb-6">🎬 Video Management</h2>
             
             {/* Video Type Toggle */}
-            <div className="flex gap-2 mb-6">
+            <div className="flex flex-wrap gap-2 mb-6">
               <button
                 type="button"
                 onClick={() => setVideoUploadMode('youtube')}
@@ -1524,14 +1658,47 @@ function AdminPanel() {
               </button>
               <button
                 type="button"
-                onClick={() => setVideoUploadMode('url')}
+                onClick={() => setVideoUploadMode('facebook')}
                 className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                  videoUploadMode === 'url' 
+                  videoUploadMode === 'facebook' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
               >
-                <span>🔗</span> Video URL
+                <span>📘</span> Facebook
+              </button>
+              <button
+                type="button"
+                onClick={() => setVideoUploadMode('instagram')}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  videoUploadMode === 'instagram' 
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white' 
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                <span>📷</span> Instagram
+              </button>
+              <button
+                type="button"
+                onClick={() => setVideoUploadMode('vimeo')}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  videoUploadMode === 'vimeo' 
+                    ? 'bg-cyan-600 text-white' 
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                <span>🎥</span> Vimeo
+              </button>
+              <button
+                type="button"
+                onClick={() => setVideoUploadMode('url')}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  videoUploadMode === 'url' 
+                    ? 'bg-gray-600 text-white' 
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                <span>🔗</span> Other URL
               </button>
               <button
                 type="button"
@@ -1576,13 +1743,58 @@ function AdminPanel() {
                   
                   {videoUploadMode === 'url' && (
                     <div>
-                      <label className="block text-gray-300 mb-2 text-sm">Video URL</label>
+                      <label className="block text-gray-300 mb-2 text-sm">Direct Video URL</label>
                       <input
                         type="url"
                         placeholder="https://example.com/video.mp4"
                         value={newVideo.src}
                         onChange={(e) => setNewVideo({ ...newVideo, src: e.target.value })}
+                        className="w-full p-3 bg-gray-600 rounded-lg border border-gray-500 focus:border-gray-400 focus:outline-none"
+                        required
+                      />
+                      <p className="text-gray-500 text-xs mt-1">Supports MP4, WebM, MOV files</p>
+                    </div>
+                  )}
+
+                  {videoUploadMode === 'facebook' && (
+                    <div>
+                      <label className="block text-gray-300 mb-2 text-sm">Facebook Video URL</label>
+                      <input
+                        type="text"
+                        placeholder="https://www.facebook.com/watch?v=... or https://fb.watch/..."
+                        value={newVideo.src}
+                        onChange={(e) => setNewVideo({ ...newVideo, src: e.target.value })}
                         className="w-full p-3 bg-gray-600 rounded-lg border border-gray-500 focus:border-blue-500 focus:outline-none"
+                        required
+                      />
+                      <p className="text-gray-500 text-xs mt-1">Video must be public</p>
+                    </div>
+                  )}
+
+                  {videoUploadMode === 'instagram' && (
+                    <div>
+                      <label className="block text-gray-300 mb-2 text-sm">Instagram Post/Reel URL</label>
+                      <input
+                        type="text"
+                        placeholder="https://www.instagram.com/p/... or https://www.instagram.com/reel/..."
+                        value={newVideo.src}
+                        onChange={(e) => setNewVideo({ ...newVideo, src: e.target.value })}
+                        className="w-full p-3 bg-gray-600 rounded-lg border border-gray-500 focus:border-pink-500 focus:outline-none"
+                        required
+                      />
+                      <p className="text-gray-500 text-xs mt-1">Supports posts, reels, and IGTV</p>
+                    </div>
+                  )}
+
+                  {videoUploadMode === 'vimeo' && (
+                    <div>
+                      <label className="block text-gray-300 mb-2 text-sm">Vimeo URL</label>
+                      <input
+                        type="text"
+                        placeholder="https://vimeo.com/123456789"
+                        value={newVideo.src}
+                        onChange={(e) => setNewVideo({ ...newVideo, src: e.target.value })}
+                        className="w-full p-3 bg-gray-600 rounded-lg border border-gray-500 focus:border-cyan-500 focus:outline-none"
                         required
                       />
                     </div>
@@ -1600,7 +1812,7 @@ function AdminPanel() {
                         ) : (
                           <div className="text-center">
                             <span className="text-4xl">🎥</span>
-                            <p className="text-gray-400 mt-2 text-sm">Click to select video (max 100MB)</p>
+                            <p className="text-gray-400 mt-2 text-sm">Click to select video (max 50MB)</p>
                             <p className="text-gray-500 text-xs">MP4, WebM, MOV supported</p>
                           </div>
                         )}
@@ -1611,6 +1823,7 @@ function AdminPanel() {
                           className="hidden" 
                         />
                       </label>
+                      <p className="text-yellow-500 text-xs mt-2">💡 For larger videos, upload to YouTube and paste the link instead</p>
                     </div>
                   )}
                 </div>
@@ -1689,11 +1902,28 @@ function AdminPanel() {
 
               <button 
                 type="submit"
-                disabled={videoUploadMode === 'upload' && !videoUploadPreview}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed py-3 rounded-lg font-medium transition-colors"
+                disabled={(videoUploadMode === 'upload' && !videoUploadPreview) || videoUploading}
+                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
               >
-                ➕ Add Video
+                {videoUploading ? (
+                  <>
+                    <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                    Uploading... {uploadProgress > 0 && `${uploadProgress}%`}
+                  </>
+                ) : (
+                  <>➕ Add Video</>
+                )}
               </button>
+              
+              {/* Upload Progress Bar */}
+              {videoUploading && uploadProgress > 0 && (
+                <div className="w-full bg-gray-600 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-green-500 h-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              )}
             </form>
 
             {/* Videos List */}
@@ -1702,12 +1932,24 @@ function AdminPanel() {
                 📋 Videos List
                 <button 
                   onClick={fetchVideos}
-                  className="text-sm bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded"
+                  disabled={videosLoading}
+                  className="text-sm bg-gray-700 hover:bg-gray-600 disabled:bg-gray-600 px-2 py-1 rounded flex items-center gap-1"
                 >
-                  🔄 Refresh
+                  {videosLoading ? (
+                    <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  ) : (
+                    '🔄'
+                  )}
+                  Refresh
                 </button>
               </h3>
 
+              {videosLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                  <div className="animate-spin w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div>
+                  <p>Loading videos...</p>
+                </div>
+              ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-auto">
                 {documents.map((video) => (
                   <div 
@@ -1733,13 +1975,19 @@ function AdminPanel() {
                       {/* Type Badge */}
                       <div className="absolute top-2 right-2">
                         <span className={`text-xs px-2 py-1 rounded font-medium ${
-                          video.type === 'youtube' 
-                            ? 'bg-red-600 text-white' 
-                            : video.type === 'uploaded'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-blue-600 text-white'
+                          video.type === 'youtube' ? 'bg-red-600 text-white' 
+                            : video.type === 'facebook' ? 'bg-blue-600 text-white'
+                            : video.type === 'instagram' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white'
+                            : video.type === 'vimeo' ? 'bg-cyan-600 text-white'
+                            : video.type === 'uploaded' ? 'bg-green-600 text-white'
+                            : 'bg-gray-600 text-white'
                         }`}>
-                          {video.type === 'youtube' ? '▶️ YouTube' : video.type === 'uploaded' ? '📤 Uploaded' : '🔗 URL'}
+                          {video.type === 'youtube' ? '▶️ YouTube' 
+                            : video.type === 'facebook' ? '📘 Facebook'
+                            : video.type === 'instagram' ? '📷 Instagram'
+                            : video.type === 'vimeo' ? '🎥 Vimeo'
+                            : video.type === 'uploaded' ? '📤 Uploaded' 
+                            : '🔗 URL'}
                         </span>
                       </div>
                       
@@ -1819,6 +2067,7 @@ function AdminPanel() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
           </div>
         )}
@@ -2109,6 +2358,678 @@ function AdminPanel() {
                 <div className="text-center py-10 text-gray-400">
                   <p className="text-4xl mb-2">📷</p>
                   <p>No photos in this category</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ============ CURRICULUM TAB ============ */}
+        {activeTab === 'curriculum' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Curriculum Form */}
+            <div className="bg-gray-800 p-6 rounded-xl">
+              <h2 className="text-lg font-bold mb-4">
+                {editingCurriculum ? '✏️ Edit Curriculum' : '➕ Add Curriculum Level'}
+              </h2>
+
+              <select
+                value={newCurriculum.level}
+                onChange={(e) => setNewCurriculum({ ...newCurriculum, level: e.target.value })}
+                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+              >
+                <option value="preprimary">🌟 Pre-Primary (Nursery, LKG, UKG)</option>
+                <option value="primary">📚 Primary (Classes I-V)</option>
+                <option value="middle">🔬 Middle School (Classes VI-VIII)</option>
+                <option value="secondary">🎯 Secondary (Classes IX-X)</option>
+                <option value="senior">🎓 Senior Secondary (Classes XI-XII)</option>
+              </select>
+
+              <input
+                type="text"
+                placeholder="Title (e.g., 'Pre-Primary Education')"
+                value={newCurriculum.title}
+                onChange={(e) => setNewCurriculum({ ...newCurriculum, title: e.target.value })}
+                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+              />
+
+              <input
+                type="text"
+                placeholder="Age Group (e.g., '3-6 years')"
+                value={newCurriculum.age}
+                onChange={(e) => setNewCurriculum({ ...newCurriculum, age: e.target.value })}
+                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+              />
+
+              <textarea
+                placeholder="Description..."
+                value={newCurriculum.description}
+                onChange={(e) => setNewCurriculum({ ...newCurriculum, description: e.target.value })}
+                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-24 resize-none"
+              />
+
+              {/* Subjects */}
+              <div className="mb-3">
+                <label className="text-sm text-gray-400 mb-2 block">Subjects</label>
+                <div className="flex gap-2 mb-2">
+                  <select
+                    value={newSubjectInput.icon}
+                    onChange={(e) => setNewSubjectInput({ ...newSubjectInput, icon: e.target.value })}
+                    className="bg-gray-700 text-white p-2 rounded-lg w-16"
+                  >
+                    {['📚', '📖', '✏️', '🔢', '🔬', '🌍', '🎨', '🎵', '💻', '🏃', '🧪', '📐', '🌐', '💼', '🧮', '📝'].map(icon => (
+                      <option key={icon} value={icon}>{icon}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Subject name"
+                    value={newSubjectInput.name}
+                    onChange={(e) => setNewSubjectInput({ ...newSubjectInput, name: e.target.value })}
+                    className="flex-1 bg-gray-700 text-white p-2 rounded-lg"
+                  />
+                  <button
+                    onClick={() => {
+                      if (newSubjectInput.name.trim()) {
+                        setNewCurriculum({
+                          ...newCurriculum,
+                          subjects: [...newCurriculum.subjects, { ...newSubjectInput }]
+                        });
+                        setNewSubjectInput({ name: '', icon: '📚' });
+                      }
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {newCurriculum.subjects.map((subject, idx) => (
+                    <span key={idx} className="bg-gray-700 px-2 py-1 rounded text-sm flex items-center gap-1">
+                      {subject.icon} {subject.name}
+                      <button
+                        onClick={() => setNewCurriculum({
+                          ...newCurriculum,
+                          subjects: newCurriculum.subjects.filter((_, i) => i !== idx)
+                        })}
+                        className="text-red-400 hover:text-red-300 ml-1"
+                      >×</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Streams (for senior secondary) */}
+              {(newCurriculum.level === 'secondary' || newCurriculum.level === 'senior') && (
+                <div className="mb-3">
+                  <label className="text-sm text-gray-400 mb-2 block">Streams</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      placeholder="Stream name (e.g., Science)"
+                      value={newStreamInput}
+                      onChange={(e) => setNewStreamInput(e.target.value)}
+                      className="flex-1 bg-gray-700 text-white p-2 rounded-lg"
+                    />
+                    <button
+                      onClick={() => {
+                        if (newStreamInput.trim()) {
+                          setNewCurriculum({
+                            ...newCurriculum,
+                            streams: [...newCurriculum.streams, newStreamInput.trim()]
+                          });
+                          setNewStreamInput('');
+                        }
+                      }}
+                      className="bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded-lg"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {newCurriculum.streams.map((stream, idx) => (
+                      <span key={idx} className="bg-purple-600/30 px-2 py-1 rounded text-sm flex items-center gap-1">
+                        {stream}
+                        <button
+                          onClick={() => setNewCurriculum({
+                            ...newCurriculum,
+                            streams: newCurriculum.streams.filter((_, i) => i !== idx)
+                          })}
+                          className="text-red-400 hover:text-red-300 ml-1"
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Highlights */}
+              <div className="mb-3">
+                <label className="text-sm text-gray-400 mb-2 block">Highlights</label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    placeholder="Add a highlight..."
+                    value={newHighlightInput}
+                    onChange={(e) => setNewHighlightInput(e.target.value)}
+                    className="flex-1 bg-gray-700 text-white p-2 rounded-lg"
+                  />
+                  <button
+                    onClick={() => {
+                      if (newHighlightInput.trim()) {
+                        setNewCurriculum({
+                          ...newCurriculum,
+                          highlights: [...newCurriculum.highlights, newHighlightInput.trim()]
+                        });
+                        setNewHighlightInput('');
+                      }
+                    }}
+                    className="bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  {newCurriculum.highlights.map((highlight, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-gray-700/50 px-2 py-1 rounded text-sm">
+                      <span>✓ {highlight}</span>
+                      <button
+                        onClick={() => setNewCurriculum({
+                          ...newCurriculum,
+                          highlights: newCurriculum.highlights.filter((_, i) => i !== idx)
+                        })}
+                        className="text-red-400 hover:text-red-300"
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <input
+                  type="number"
+                  placeholder="Order"
+                  value={newCurriculum.order}
+                  onChange={(e) => setNewCurriculum({ ...newCurriculum, order: parseInt(e.target.value) || 0 })}
+                  className="bg-gray-700 text-white p-3 rounded-lg"
+                />
+                <label className="flex items-center gap-2 bg-gray-700 p-3 rounded-lg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newCurriculum.isActive}
+                    onChange={(e) => setNewCurriculum({ ...newCurriculum, isActive: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-white text-sm">Active</span>
+                </label>
+              </div>
+
+              <div className="flex gap-3">
+                {editingCurriculum ? (
+                  <>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API_URL}/admin/curriculum/${editingCurriculum._id}`, {
+                            method: 'PUT',
+                            headers: { 
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${token}` 
+                            },
+                            body: JSON.stringify(newCurriculum)
+                          });
+                          if (res.ok) {
+                            setEditingCurriculum(null);
+                            setNewCurriculum({
+                              level: 'preprimary', title: '', age: '', description: '',
+                              subjects: [], streams: [], highlights: [], isActive: true, order: 0
+                            });
+                            fetchCurriculum();
+                          }
+                        } catch (error) {
+                          console.error('Error updating curriculum:', error);
+                        }
+                      }}
+                      className="flex-1 bg-green-600 hover:bg-green-700 py-3 rounded-lg font-medium transition-colors"
+                    >
+                      💾 Save Changes
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingCurriculum(null);
+                        setNewCurriculum({
+                          level: 'preprimary', title: '', age: '', description: '',
+                          subjects: [], streams: [], highlights: [], isActive: true, order: 0
+                        });
+                      }}
+                      className="flex-1 bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-medium transition-colors"
+                    >
+                      ❌ Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      if (!newCurriculum.title) {
+                        alert('Please provide a title');
+                        return;
+                      }
+                      try {
+                        const res = await fetch(`${API_URL}/admin/curriculum`, {
+                          method: 'POST',
+                          headers: { 
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${token}` 
+                          },
+                          body: JSON.stringify(newCurriculum)
+                        });
+                        if (res.ok) {
+                          setNewCurriculum({
+                            level: 'preprimary', title: '', age: '', description: '',
+                            subjects: [], streams: [], highlights: [], isActive: true, order: 0
+                          });
+                          fetchCurriculum();
+                        }
+                      } catch (error) {
+                        console.error('Error adding curriculum:', error);
+                      }
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-medium transition-colors"
+                  >
+                    ➕ Add Curriculum
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Curriculum List */}
+            <div className="lg:col-span-2 bg-gray-800 p-6 rounded-xl">
+              <h3 className="text-lg font-bold text-white mb-4">📚 Curriculum Levels ({curriculumData.length})</h3>
+              
+              <div className="space-y-4 max-h-[700px] overflow-y-auto">
+                {curriculumData.length === 0 ? (
+                  <div className="text-center py-10 text-gray-400">
+                    <p className="text-4xl mb-2">📚</p>
+                    <p>No curriculum data yet. Add your first level!</p>
+                  </div>
+                ) : (
+                  curriculumData.map((curr) => (
+                    <div key={curr._id} className={`bg-gray-700/50 rounded-xl p-4 ${!curr.isActive ? 'opacity-50' : ''}`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            curr.level === 'preprimary' ? 'bg-pink-600/30 text-pink-300' :
+                            curr.level === 'primary' ? 'bg-blue-600/30 text-blue-300' :
+                            curr.level === 'middle' ? 'bg-green-600/30 text-green-300' :
+                            curr.level === 'secondary' ? 'bg-yellow-600/30 text-yellow-300' :
+                            'bg-purple-600/30 text-purple-300'
+                          }`}>
+                            {curr.level.toUpperCase()}
+                          </span>
+                          <h4 className="text-lg font-bold text-white mt-2">{curr.title}</h4>
+                          {curr.age && <p className="text-sm text-gray-400">Age: {curr.age}</p>}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingCurriculum(curr);
+                              setNewCurriculum({
+                                level: curr.level,
+                                title: curr.title,
+                                age: curr.age || '',
+                                description: curr.description || '',
+                                subjects: curr.subjects || [],
+                                streams: curr.streams || [],
+                                highlights: curr.highlights || [],
+                                isActive: curr.isActive,
+                                order: curr.order || 0
+                              });
+                            }}
+                            className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded text-sm"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm('Delete this curriculum level?')) {
+                                try {
+                                  await fetch(`${API_URL}/admin/curriculum/${curr._id}`, {
+                                    method: 'DELETE',
+                                    headers: { Authorization: `Bearer ${token}` }
+                                  });
+                                  fetchCurriculum();
+                                } catch (error) {
+                                  console.error('Error deleting curriculum:', error);
+                                }
+                              }
+                            }}
+                            className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {curr.description && (
+                        <p className="text-sm text-gray-300 mb-3">{curr.description}</p>
+                      )}
+                      
+                      {curr.subjects && curr.subjects.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-xs text-gray-400 mb-1">Subjects:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {curr.subjects.map((subj, idx) => (
+                              <span key={idx} className="bg-gray-600 px-2 py-0.5 rounded text-xs">
+                                {subj.icon} {subj.name}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {curr.streams && curr.streams.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-xs text-gray-400 mb-1">Streams:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {curr.streams.map((stream, idx) => (
+                              <span key={idx} className="bg-purple-600/30 px-2 py-0.5 rounded text-xs">
+                                {stream}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {curr.highlights && curr.highlights.length > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-400 mb-1">Highlights:</p>
+                          <ul className="text-xs text-gray-300 space-y-0.5">
+                            {curr.highlights.slice(0, 3).map((h, idx) => (
+                              <li key={idx}>✓ {h}</li>
+                            ))}
+                            {curr.highlights.length > 3 && (
+                              <li className="text-gray-500">+{curr.highlights.length - 3} more</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {!curr.isActive && (
+                        <span className="text-xs text-red-400 mt-2 block">⚠️ Hidden from website</span>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============ ANNUAL EVENTS TAB ============ */}
+        {activeTab === 'events' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Event Form */}
+            <div className="bg-gray-800 p-6 rounded-xl">
+              <h2 className="text-lg font-bold mb-4">
+                {editingEvent ? '✏️ Edit Event' : '➕ Add Annual Event'}
+              </h2>
+
+              <select
+                value={newEvent.month}
+                onChange={(e) => setNewEvent({ ...newEvent, month: e.target.value })}
+                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+              >
+                {['January', 'February', 'March', 'April', 'May', 'June', 
+                  'July', 'August', 'September', 'October', 'November', 'December'].map(month => (
+                  <option key={month} value={month}>{month}</option>
+                ))}
+              </select>
+
+              <input
+                type="text"
+                placeholder="Date (e.g., '15', '1-5', 'TBA')"
+                value={newEvent.date}
+                onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+              />
+
+              <input
+                type="text"
+                placeholder="Event Title *"
+                value={newEvent.title}
+                onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+              />
+
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <select
+                  value={newEvent.type}
+                  onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value })}
+                  className="bg-gray-700 text-white p-3 rounded-lg"
+                >
+                  <option value="academic">📚 Academic</option>
+                  <option value="holiday">🏖️ Holiday</option>
+                  <option value="exam">📝 Exam</option>
+                  <option value="sports">⚽ Sports</option>
+                  <option value="cultural">🎭 Cultural</option>
+                  <option value="event">📅 General Event</option>
+                </select>
+
+                <select
+                  value={newEvent.icon}
+                  onChange={(e) => setNewEvent({ ...newEvent, icon: e.target.value })}
+                  className="bg-gray-700 text-white p-3 rounded-lg"
+                >
+                  {['📅', '🎉', '📚', '🏖️', '📝', '⚽', '🎭', '🎄', '🪔', '🎊', '🏆', '🎓', '🌟', '🎪', '🎨', '🏃', '📖', '✨'].map(icon => (
+                    <option key={icon} value={icon}>{icon}</option>
+                  ))}
+                </select>
+              </div>
+
+              <textarea
+                placeholder="Description (optional)"
+                value={newEvent.description}
+                onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
+                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-20 resize-none"
+              />
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <input
+                  type="number"
+                  placeholder="Order"
+                  value={newEvent.order}
+                  onChange={(e) => setNewEvent({ ...newEvent, order: parseInt(e.target.value) || 0 })}
+                  className="bg-gray-700 text-white p-3 rounded-lg"
+                />
+                <label className="flex items-center gap-2 bg-gray-700 p-3 rounded-lg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newEvent.isActive}
+                    onChange={(e) => setNewEvent({ ...newEvent, isActive: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-white text-sm">Active</span>
+                </label>
+              </div>
+
+              <div className="flex gap-3">
+                {editingEvent ? (
+                  <>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API_URL}/admin/annual-events/${editingEvent._id}`, {
+                            method: 'PUT',
+                            headers: { 
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${token}` 
+                            },
+                            body: JSON.stringify(newEvent)
+                          });
+                          if (res.ok) {
+                            setEditingEvent(null);
+                            setNewEvent({
+                              month: 'January', date: '', title: '', type: 'event',
+                              icon: '📅', description: '', isActive: true, order: 0
+                            });
+                            fetchAnnualEvents();
+                          }
+                        } catch (error) {
+                          console.error('Error updating event:', error);
+                        }
+                      }}
+                      className="flex-1 bg-green-600 hover:bg-green-700 py-3 rounded-lg font-medium transition-colors"
+                    >
+                      💾 Save Changes
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingEvent(null);
+                        setNewEvent({
+                          month: 'January', date: '', title: '', type: 'event',
+                          icon: '📅', description: '', isActive: true, order: 0
+                        });
+                      }}
+                      className="flex-1 bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-medium transition-colors"
+                    >
+                      ❌ Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      if (!newEvent.title) {
+                        alert('Please provide an event title');
+                        return;
+                      }
+                      try {
+                        const res = await fetch(`${API_URL}/admin/annual-events`, {
+                          method: 'POST',
+                          headers: { 
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${token}` 
+                          },
+                          body: JSON.stringify(newEvent)
+                        });
+                        if (res.ok) {
+                          setNewEvent({
+                            month: 'January', date: '', title: '', type: 'event',
+                            icon: '📅', description: '', isActive: true, order: 0
+                          });
+                          fetchAnnualEvents();
+                        }
+                      } catch (error) {
+                        console.error('Error adding event:', error);
+                      }
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-medium transition-colors"
+                  >
+                    ➕ Add Event
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Events List */}
+            <div className="lg:col-span-2 bg-gray-800 p-6 rounded-xl">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-white">📅 Annual Events ({annualEvents.length})</h3>
+                <select
+                  value={eventMonthFilter}
+                  onChange={(e) => setEventMonthFilter(e.target.value)}
+                  className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm"
+                >
+                  <option value="all">All Months</option>
+                  {['January', 'February', 'March', 'April', 'May', 'June', 
+                    'July', 'August', 'September', 'October', 'November', 'December'].map(month => (
+                    <option key={month} value={month}>{month}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="space-y-3 max-h-[700px] overflow-y-auto">
+                {annualEvents.length === 0 ? (
+                  <div className="text-center py-10 text-gray-400">
+                    <p className="text-4xl mb-2">📅</p>
+                    <p>No events yet. Add your first event!</p>
+                  </div>
+                ) : (
+                  annualEvents
+                    .filter(event => eventMonthFilter === 'all' || event.month === eventMonthFilter)
+                    .map((event) => (
+                      <div key={event._id} className={`bg-gray-700/50 rounded-lg p-4 flex items-center gap-4 ${!event.isActive ? 'opacity-50' : ''}`}>
+                        <div className="text-3xl">{event.icon}</div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-xs px-2 py-0.5 rounded ${
+                              event.type === 'academic' ? 'bg-blue-600/30 text-blue-300' :
+                              event.type === 'holiday' ? 'bg-green-600/30 text-green-300' :
+                              event.type === 'exam' ? 'bg-red-600/30 text-red-300' :
+                              event.type === 'sports' ? 'bg-yellow-600/30 text-yellow-300' :
+                              event.type === 'cultural' ? 'bg-purple-600/30 text-purple-300' :
+                              'bg-gray-600/30 text-gray-300'
+                            }`}>
+                              {event.type.toUpperCase()}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {event.month} {event.date && `(${event.date})`}
+                            </span>
+                          </div>
+                          <h4 className="font-semibold text-white">{event.title}</h4>
+                          {event.description && (
+                            <p className="text-sm text-gray-400 mt-1">{event.description}</p>
+                          )}
+                          {!event.isActive && (
+                            <span className="text-xs text-red-400">⚠️ Hidden</span>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingEvent(event);
+                              setNewEvent({
+                                month: event.month,
+                                date: event.date || '',
+                                title: event.title,
+                                type: event.type,
+                                icon: event.icon,
+                                description: event.description || '',
+                                isActive: event.isActive,
+                                order: event.order || 0
+                              });
+                            }}
+                            className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded text-sm"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm('Delete this event?')) {
+                                try {
+                                  await fetch(`${API_URL}/admin/annual-events/${event._id}`, {
+                                    method: 'DELETE',
+                                    headers: { Authorization: `Bearer ${token}` }
+                                  });
+                                  fetchAnnualEvents();
+                                } catch (error) {
+                                  console.error('Error deleting event:', error);
+                                }
+                              }
+                            }}
+                            className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+              
+              {annualEvents.filter(event => eventMonthFilter === 'all' || event.month === eventMonthFilter).length === 0 && 
+               eventMonthFilter !== 'all' && annualEvents.length > 0 && (
+                <div className="text-center py-10 text-gray-400">
+                  <p>No events in {eventMonthFilter}</p>
                 </div>
               )}
             </div>

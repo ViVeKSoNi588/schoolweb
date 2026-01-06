@@ -20,20 +20,20 @@ const admissionData = {
     "Address Proof (Electricity Bill / Rent Agreement)",
     "Caste Certificate (if applicable)"
   ],
+  // Currently only Pre-Primary classes available - more classes coming soon
   grades: [
     { name: "Play Group", age: "2.5 - 3 years", seats: "30" },
     { name: "Nursery", age: "3 - 4 years", seats: "40" },
     { name: "LKG", age: "4 - 5 years", seats: "40" },
-    { name: "UKG", age: "5 - 6 years", seats: "40" },
-    { name: "Grade 1 - 5", age: "6 - 11 years", seats: "45 per class" },
-    { name: "Grade 6 - 8", age: "11 - 14 years", seats: "45 per class" }
+    { name: "UKG", age: "5 - 6 years", seats: "40" }
   ],
   faqs: [
     { q: "What is the admission process timeline?", a: "Admissions typically open in January for the next academic year. The process takes 2-3 weeks from application to confirmation." },
-    { q: "Is there an entrance test?", a: "For Pre-Primary, we conduct a simple interaction session. For Grade 1 onwards, there is a basic assessment in English and Mathematics." },
+    { q: "Is there an entrance test?", a: "For Pre-Primary, we conduct a simple interaction session to understand the child better. No formal test is required." },
     { q: "What is the fee structure?", a: "Fee structure varies by grade. Please contact our admission office or visit the campus for detailed fee information." },
     { q: "Do you offer transportation?", a: "Yes, we provide safe and reliable bus service covering major areas of the city." },
-    { q: "What curriculum do you follow?", a: "We follow the CBSE curriculum with a focus on holistic development through co-curricular activities." }
+    { q: "What curriculum do you follow?", a: "We follow a play-based learning approach for Pre-Primary, focusing on holistic development through activities, art, music, and social interaction." },
+    { q: "Will you be adding more classes?", a: "Yes! We are planning to add Primary classes (Grade 1-5) in the coming years. Stay tuned for updates." }
   ]
 };
 
@@ -254,15 +254,8 @@ function Admission() {
                 <option value="Nursery">Nursery (3 - 4 years)</option>
                 <option value="LKG">LKG (4 - 5 years)</option>
                 <option value="UKG">UKG (5 - 6 years)</option>
-                <option value="Grade 1">Grade 1</option>
-                <option value="Grade 2">Grade 2</option>
-                <option value="Grade 3">Grade 3</option>
-                <option value="Grade 4">Grade 4</option>
-                <option value="Grade 5">Grade 5</option>
-                <option value="Grade 6">Grade 6</option>
-                <option value="Grade 7">Grade 7</option>
-                <option value="Grade 8">Grade 8</option>
               </select>
+              <p className="text-xs text-gray-500 mt-1">Currently accepting admissions for Pre-Primary only. More classes coming soon!</p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">

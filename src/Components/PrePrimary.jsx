@@ -29,15 +29,14 @@ const defaultContent = {
     "Safe and secure campus",
     "Hygienic washrooms",
     "Indoor play area",
-    "Outdoor playground with soft flooring",
     "CCTV surveillance",
     "Trained and caring staff"
   ],
   timings: {
     days: "Monday to Friday",
-    playGroup: "9:00 AM - 12:00 PM",
-    nurseryLKG: "8:30 AM - 12:30 PM",
-    UKG: "8:30 AM - 1:00 PM"
+    playGroup: "9:00 AM - 12:30 PM",
+    nurseryLKG: "9:00 AM - 12:30 PM",
+    UKG: "9:00 AM - 12:30 PM"
   }
 };
 

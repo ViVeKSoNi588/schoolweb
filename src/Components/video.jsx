@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
-import Content from './Content';
 import API_URL from '../config';
 
 function VideoPlayer() {
   const [videos, setVideos] = useState([]);
-  const [currentVideo, setCurrentVideo] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,9 +15,6 @@ function VideoPlayer() {
       if (res.ok) {
         const data = await res.json();
         setVideos(data);
-        if (data.length > 0) {
-          setCurrentVideo(data[0]);
-        }
       }
     } catch (error) {
       console.error('Error fetching videos:', error);
@@ -42,39 +37,129 @@ function VideoPlayer() {
     return null;
   };
 
-  // Render video based on type
+  // Detect video platform from URL
+  const detectPlatform = (url) => {
+    if (!url) return 'unknown';
+    const urlLower = url.toLowerCase();
+    
+    if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) return 'youtube';
+    if (urlLower.includes('facebook.com') || urlLower.includes('fb.watch')) return 'facebook';
+    if (urlLower.includes('instagram.com')) return 'instagram';
+    if (urlLower.includes('vimeo.com')) return 'vimeo';
+    if (urlLower.includes('dailymotion.com')) return 'dailymotion';
+    if (urlLower.match(/\.(mp4|webm|ogg|mov)(\?|$)/i)) return 'direct';
+    
+    return 'direct'; // Default to direct for unknown URLs
+  };
+
+  // Get Vimeo video ID
+  const getVimeoId = (url) => {
+    const match = url.match(/vimeo\.com\/(\d+)/);
+    return match ? match[1] : null;
+  };
+
+  // Render video based on type/platform
   const renderVideo = (video) => {
     if (!video) return null;
 
-    if (video.type === 'youtube') {
-      const videoId = getYouTubeId(video.src);
-      if (!videoId) return <p className="text-red-400 text-sm">Invalid YouTube URL</p>;
-      
-      return (
-        <iframe
-          src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
-          title={video.title}
-          className="w-full h-full rounded-lg"
-          frameBorder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
-      );
-    } else {
-      // Uploaded video or direct URL
-      return (
-        <video
-          src={video.src}
-          title={video.title}
-          className="w-full h-full rounded-lg object-contain bg-black"
-          controls
-          poster={video.thumbnail || ''}
-        >
-          Your browser does not support the video tag.
-        </video>
-      );
+    const url = video.src || video.url;
+    if (!url) return <p className="text-red-400 text-sm p-2">No video URL</p>;
+
+    const platform = video.type || detectPlatform(url);
+
+    switch (platform) {
+      case 'youtube': {
+        const videoId = getYouTubeId(url);
+        if (!videoId) return <p className="text-red-400 text-sm p-2">Invalid YouTube URL</p>;
+        return (
+          <iframe
+            src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
+            title={video.title}
+            className="w-full h-full rounded-lg"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        );
+      }
+
+      case 'facebook': {
+        const encodedUrl = encodeURIComponent(url);
+        return (
+          <iframe
+            src={`https://www.facebook.com/plugins/video.php?href=${encodedUrl}&show_text=false`}
+            title={video.title}
+            className="w-full h-full rounded-lg"
+            frameBorder="0"
+            allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        );
+      }
+
+      case 'instagram': {
+        const instaMatch = url.match(/instagram\.com\/(?:p|reel|tv)\/([^/?]+)/);
+        if (instaMatch) {
+          return (
+            <iframe
+              src={`https://www.instagram.com/p/${instaMatch[1]}/embed`}
+              title={video.title}
+              className="w-full h-full rounded-lg"
+              frameBorder="0"
+              allowFullScreen
+            />
+          );
+        }
+        return <p className="text-red-400 text-sm p-2">Invalid Instagram URL</p>;
+      }
+
+      case 'vimeo': {
+        const vimeoId = getVimeoId(url);
+        if (!vimeoId) return <p className="text-red-400 text-sm p-2">Invalid Vimeo URL</p>;
+        return (
+          <iframe
+            src={`https://player.vimeo.com/video/${vimeoId}`}
+            title={video.title}
+            className="w-full h-full rounded-lg"
+            frameBorder="0"
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+          />
+        );
+      }
+
+      case 'url':
+      case 'direct':
+      case 'uploaded':
+      default: {
+        // Handle different video sources
+        let videoSrc = url;
+        
+        // For uploaded videos with file path, construct full URL
+        if (video.type === 'uploaded' && url.startsWith('/uploads')) {
+          videoSrc = `${API_URL.replace('/api', '')}${url}`;
+        }
+        // For legacy base64 videos, use as-is
+        else if (url.startsWith('data:video/')) {
+          videoSrc = url;
+        }
+        
+        return (
+          <video
+            src={videoSrc}
+            title={video.title}
+            className="w-full h-full rounded-lg object-contain bg-black"
+            controls
+            poster={video.thumbnail || ''}
+          >
+            Your browser does not support the video tag.
+          </video>
+        );
+      }
     }
   };
+
+
 
   if (loading) {
     return (
@@ -84,55 +169,35 @@ function VideoPlayer() {
     );
   }
 
-  if (videos.length === 0) {
-    return null; // Don't show anything if no videos
-  }
+  // Default welcome video for new school
+  const defaultVideo = {
+    _id: 'default',
+    title: 'Welcome to Vatsalya International School',
+    src: 'https://www.youtube.com/watch?v=ScMzIvxBSi4',
+    type: 'youtube',
+    description: 'Discover our nurturing Pre-Primary program'
+  };
+
+  const displayVideos = videos.length > 0 ? videos : [defaultVideo];
 
   return (
     <div className="flex-shrink-0">
       <div className="flex flex-col gap-4">
-        {videos.map((video) => (
+        {displayVideos.map((video) => (
           <div
             key={video._id}
             className="bg-white rounded-xl overflow-hidden hover:shadow-lg transition-shadow"
           >
-            {/* Video Container - Rectangle */}
+            {/* Video Container */}
             <div className="relative w-72 h-40 bg-gray-900">
-              {currentVideo?._id === video._id ? (
-                renderVideo(video)
-              ) : (
-                <div 
-                  onClick={() => setCurrentVideo(video)}
-                  className="w-full h-full cursor-pointer relative group"
-                >
-                  {/* Thumbnail */}
-                  {video.thumbnail ? (
-                    <img
-                      src={video.thumbnail}
-                      alt={video.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : video.type === 'youtube' ? (
-                    <img
-                      src={`https://img.youtube.com/vi/${getYouTubeId(video.src)}/mqdefault.jpg`}
-                      alt={video.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-800">
-                      <span className="text-3xl">🎥</span>
-                    </div>
-                  )}
-                  
-                  {/* Play Button Overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/50 transition-colors">
-                    <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <span className="text-gray-800 text-sm ml-0.5">▶</span>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {renderVideo(video)}
             </div>
+            {/* Video Title */}
+            {video.title && (
+              <div className="p-2 bg-white">
+                <p className="text-sm font-medium text-gray-800 truncate">{video.title}</p>
+              </div>
+            )}
           </div>
         ))}
       </div>
