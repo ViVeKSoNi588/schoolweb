@@ -23,7 +23,7 @@ function App() {
         <Route path="/" element={
           <div className="min-h-screen bg-gray-50">
             {/* Sticky Social Media Sidebar */}
-            <div className="fixed left-4 top-1/2 -translate-y-1/2 z-50 hidden md:flex flex-col gap-2">
+            <div className="fixed left-4 top-2/3 -translate-y-1/2 z-50 hidden md:flex flex-col gap-2">
               <a href="https://www.facebook.com/share/1EqWr7ZR7M/" target="_blank" rel="noopener noreferrer" 
                 className="w-10 h-10 bg-blue-600 hover:bg-blue-700 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-md hover:scale-110 transition-all">
                 f
