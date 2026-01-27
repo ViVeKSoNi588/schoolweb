@@ -139,55 +139,7 @@ function AboutUs() {
         </div>
       </section>
 
-      {/* Our Story Section */}
-      <section className="py-20 bg-white px-4 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <span className="inline-block bg-blue-100 text-blue-800 text-sm font-semibold px-4 py-2 rounded-full mb-4">
-                📜 OUR JOURNEY
-              </span>
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-                A Legacy of Educational Excellence
-              </h2>
-              <div className="space-y-4 text-gray-600 leading-relaxed">
-                <p>
-                  {aboutContent?.history || 
-                    "Founded in 1999, Vatsalya International School began with a vision to transform education in our community. What started as a small school with just 50 students has grown into a premier educational institution serving over 2000 students from diverse backgrounds."}
-                </p>
-                <p>
-                  Over the years, we have consistently evolved our teaching methodologies, 
-                  infrastructure, and curriculum to meet the changing needs of education while 
-                  staying true to our core values of excellence, integrity, and holistic development.
-                </p>
-                <p>
-                  Today, our alumni are making significant contributions across various fields 
-                  worldwide, carrying forward the values and knowledge they gained at Vatsalya.
-                </p>
-              </div>
-            </div>
-            <div className="relative">
-              <div className="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-3xl p-8 relative">
-                <img 
-                  src="/school-building.jpg" 
-                  alt="School Building" 
-                  className="rounded-2xl w-full h-80 object-cover shadow-lg"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'flex';
-                  }}
-                />
-                <div className="hidden rounded-2xl w-full h-80 bg-gradient-to-br from-blue-600 to-indigo-600 items-center justify-center text-white text-6xl shadow-lg">
-                  🏫
-                </div>
-                {/* Decorative Elements */}
-                <div className="absolute -top-4 -right-4 w-24 h-24 bg-yellow-400 rounded-2xl -z-10"></div>
-                <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-blue-600 rounded-2xl -z-10"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      
 
       {/* Core Values Section */}
       <section className="py-20 bg-gray-50 px-4 lg:px-8">
@@ -260,7 +212,7 @@ function AboutUs() {
                     "\"Education is not just about academic excellence; it's about nurturing compassionate, creative, and confident individuals who can make a positive difference in the world. At Vatsalya, we are committed to providing an environment where every child can thrive and reach their full potential.\""}
                 </blockquote>
                 <div className="text-white">
-                  <p className="font-bold text-lg">{aboutContent?.principalName || "Dr. Ramesh Kumar"}</p>
+                  <p className="font-bold text-lg">{aboutContent?.principalName || "Ms. Sheetal Soni"}</p>
                   <p className="text-blue-300">Principal, Vatsalya International School</p>
                 </div>
               </div>

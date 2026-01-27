@@ -70,7 +70,7 @@ function Contact() {
               </div>
               <h3 className="text-xl font-bold text-gray-800 mb-2">Call Us</h3>
               <a href="tel:+919876543210" className="text-blue-600 hover:text-blue-800 font-medium text-lg">
-                +91 98765 43210
+                +91 9537690994
               </a>
               <p className="text-gray-500 text-sm mt-1">Mon - Sat, 8AM - 4PM</p>
             </div>
@@ -84,7 +84,7 @@ function Contact() {
               </div>
               <h3 className="text-xl font-bold text-gray-800 mb-2">Email Us</h3>
               <a href="mailto:info@vatsalyaschool.com" className="text-purple-600 hover:text-purple-800 font-medium">
-                info@vatsalyaschool.com
+                preschoolvatsalyainternational@gmail.com
               </a>
               <p className="text-gray-500 text-sm mt-1">We reply within 24 hours</p>
             </div>
@@ -99,7 +99,7 @@ function Contact() {
               </div>
               <h3 className="text-xl font-bold text-gray-800 mb-2">Visit Us</h3>
               <p className="text-gray-600 text-sm">
-                123 Education Lane, Near City Center,<br />Ahmedabad - 380001
+                Opp. Nutan Club, Nana Bazaar, vidhyanagar,<br />Anand - 388120
               </p>
             </div>
           </div>
@@ -225,7 +225,7 @@ function Contact() {
                 <h3 className="text-xl font-bold text-gray-800 mb-4">Our Location</h3>
                 <div className="rounded-xl overflow-hidden shadow-md">
                   <iframe
-                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3671.8099668702813!2d72.5296!3d23.0225!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMjPCsDAxJzIxLjAiTiA3MsKwMzEnNDYuNiJF!5e0!3m2!1sen!2sin!4v1234567890"
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d230.2871229899373!2d72.92739576797875!3d22.556877868919944!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x395e4e73cc685fd5%3A0x945035cb7ccd806!2sPRATIBHA%20ACADEMY%20%3A%20THE%20ACTIVITY%20SCHOOL!5e0!3m2!1sen!2sin!4v1769500273494!5m2!1sen!2sin"
                     width="100%"
                     height="250"
                     style={{ border: 0 }}
@@ -235,7 +235,7 @@ function Contact() {
                   />
                 </div>
                 <a 
-                  href="https://maps.google.com" 
+                  href="https://maps.app.goo.gl/oq91SZuZfmdc4xF1A" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 mt-4 text-blue-600 hover:text-blue-800 font-medium text-sm"
@@ -268,7 +268,7 @@ function Contact() {
 
               {/* WhatsApp CTA */}
               <a 
-                href="https://wa.me/919876543210"
+                href="https://wa.me/919824994049"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-3 w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-4 rounded-2xl font-semibold transition-all shadow-lg hover:shadow-xl"

@@ -9,7 +9,7 @@ function BulletinBoard({ className = '' }) {
 
   // Default announcements if none from database
   const defaultAnnouncements = [
-    { _id: '1', title: 'Admissions Open', content: 'Admissions for Pre-Primary (Play Group to UKG) for 2026-27 are now open!', type: 'important', date: new Date().toISOString() },
+    { _id: '1', title: 'Uttarayan', content: 'School will remain closed on 13 Jan - 17 Jan on account of uttrayan', type: 'holiday', date: new Date().toISOString() },
     { _id: '2', title: 'School Opening', content: 'Vatsalya International School is now accepting admissions for Pre-Primary classes', type: 'event', date: new Date().toISOString() },
     { _id: '3', title: 'Visit Our Campus', content: 'Schedule a campus visit to see our child-friendly facilities and meet our teachers', type: 'notice', date: new Date().toISOString() },
     { _id: '4', title: 'Early Bird Discount', content: 'Special discount for early admissions. Limited period offer!', type: 'important', date: new Date().toISOString() },
