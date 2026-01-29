@@ -46,11 +46,15 @@ const uploadsDirs = [
   join(__dirname, 'uploads', 'images')
 ];
 
-uploadsDirs.forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-});
+try {
+  uploadsDirs.forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  });
+} catch (error) {
+  console.warn('⚠️ Warning: Could not create upload directories (likely read-only environment like Vercel). File uploads may not work.');
+}
 
 // Connect to MongoDB
 connectDB();
