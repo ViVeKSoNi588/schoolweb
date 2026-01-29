@@ -9,12 +9,12 @@ function Navbar() {
     <nav className="bg-blue-900 shadow-lg w-full relative z-50">
       <div className="w-full px-4">
         <div className="flex justify-between h-16">
-          {}
+          { }
           <div className="flex items-center">
             <a href="/" className="flex items-center space-x-3">
-              <img 
-                src="/vatlogo.svg" 
-                alt="School Logo" 
+              <img
+                src="/vatlogo.svg"
+                alt="School Logo"
                 className="h-10 w-10"
               />
               <span className="text-white font-bold text-xl hidden sm:block">
@@ -28,25 +28,25 @@ function Navbar() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-1">
-            <a 
-              href="/" 
+            <a
+              href="/"
               className="text-white hover:bg-blue-800 px-4 py-2 rounded-md text-sm font-medium transition-colors"
             >
               Home
             </a>
-            <a 
-              href="/about" 
+            <a
+              href="/about"
               className="text-white hover:bg-blue-800 px-4 py-2 rounded-md text-sm font-medium transition-colors"
             >
               About Us
             </a>
             {/* Academics Dropdown */}
-            <div 
+            <div
               className="relative"
               onMouseEnter={() => setAcademicOpen(true)}
               onMouseLeave={() => setAcademicOpen(false)}
             >
-              <button 
+              <button
                 className="text-white hover:bg-blue-800 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
               >
                 Academics
@@ -70,30 +70,25 @@ function Navbar() {
                 </div>
               )}
             </div>
-            <a 
-              href="/admissions" 
+            <a
+              href="/admissions"
               className="text-white hover:bg-blue-800 px-4 py-2 rounded-md text-sm font-medium transition-colors"
             >
               Admissions
             </a>
-            <a 
-              href="/gallery" 
+            <a
+              href="/gallery"
               className="text-white hover:bg-blue-800 px-4 py-2 rounded-md text-sm font-medium transition-colors"
             >
               Gallery
             </a>
-            <a 
-              href="/contact" 
+            <a
+              href="/contact"
               className="text-white hover:bg-blue-800 px-4 py-2 rounded-md text-sm font-medium transition-colors"
             >
               Contact
             </a>
-            <a 
-              href="/portal" 
-              className="bg-yellow-500 hover:bg-yellow-600 text-blue-900 px-4 py-2 rounded-md text-sm font-bold ml-2 transition-colors"
-            >
-              Student Portal
-            </a>
+            {/* Student Portal link removed as per user request */}
           </div>
 
           {/* Mobile menu button */}
@@ -121,23 +116,23 @@ function Navbar() {
       {isOpen && (
         <div className="md:hidden bg-blue-800">
           <div className="px-2 pt-2 pb-3 space-y-1">
-            <a 
-              href="/" 
+            <a
+              href="/"
               className="text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-base font-medium"
             >
               Home
             </a>
-            <a 
-              href="/about" 
+            <a
+              href="/about"
               className="text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-base font-medium"
             >
               About Us
             </a>
             {/* Mobile Academics Dropdown */}
             <div>
-              <button 
+              <button
                 onClick={() => setMobileAcademicOpen(!mobileAcademicOpen)}
-                className="text-white hover:bg-blue-700 w-full px-3 py-2 rounded-md text-base font-medium flex items-center justify-between"
+                className="text-white hover:bg-blue-700 w-full px-3 py-2 rounded-md text-base font-medium flex items-center justify-center gap-1"
               >
                 Academics
                 <svg className={`w-4 h-4 transition-transform ${mobileAcademicOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,41 +142,36 @@ function Navbar() {
               {mobileAcademicOpen && (
                 <div className="bg-blue-900 rounded-md ml-4 mt-1 space-y-1">
                   <a href="/preprimary" className="text-blue-200 hover:text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-sm">
-                    💒 Pre-Primary
+                    Pre-Primary
                   </a>
                   <a href="/academics/curriculum" className="text-blue-200 hover:text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-sm">
-                    📚 Curriculum
+                    Curriculum
                   </a>
                   <a href="/academics/annual-fixture" className="text-blue-200 hover:text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-sm">
-                    📅 Annual Fixture
+                    Annual Fixture
                   </a>
                 </div>
               )}
             </div>
-            <a 
-              href="/admissions" 
+            <a
+              href="/admissions"
               className="text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-base font-medium"
             >
               Admissions
             </a>
-            <a 
-              href="/gallery" 
+            <a
+              href="/gallery"
               className="text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-base font-medium"
             >
               Gallery
             </a>
-            <a 
-              href="/contact" 
+            <a
+              href="/contact"
               className="text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-base font-medium"
             >
               Contact
             </a>
-            <a 
-              href="/portal" 
-              className="bg-yellow-500 hover:bg-yellow-600 text-blue-900 block px-3 py-2 rounded-md text-base font-bold mt-2"
-            >
-              Student Portal
-            </a>
+            {/* Student Portal link removed from mobile menu */}
           </div>
         </div>
       )}
