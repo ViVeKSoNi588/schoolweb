@@ -52,14 +52,10 @@ function AboutUs() {
   ];
 
   const facilities = [
-    { icon: '📚', name: 'Modern Library' },
-    { icon: '🔬', name: 'Science Labs' },
-    { icon: '💻', name: 'Computer Labs' },
-    { icon: '🏊', name: 'Swimming Pool' },
-    { icon: '🏃', name: 'Sports Complex' },
-    { icon: '🎨', name: 'Art Studio' },
+    { icon: '🚌', name: 'Transport' },
+    { icon: '💻', name: 'SmartBoard' },
     { icon: '🎵', name: 'Music Room' },
-    { icon: '🚌', name: 'Transport' }
+    {icon: '🍎', name: 'Healthy Meal' },
   ];
 
   return (
