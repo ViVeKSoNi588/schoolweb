@@ -1,0 +1,9 @@
+User-agent: *
+# Allow everything else
+Allow: /
+
+# Exclude the specific page (Replace /private-page with your actual URL)
+Disallow: /admin-secret-panel
+
+# Tell Google where your sitemap is
+Sitemap: https://vatsalyainternational.org
