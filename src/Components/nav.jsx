@@ -18,10 +18,10 @@ function Navbar() {
                 className="h-10 w-10"
               />
               <span className="text-white font-bold text-xl hidden sm:block">
-                Vatsalya International School
+                Vatsalya International School Anand
               </span>
               <span className="text-white font-bold text-xl sm:hidden">
-                VIS
+                Vatsalya International School Anand
               </span>
             </a>
           </div>
