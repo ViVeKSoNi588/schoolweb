@@ -123,10 +123,10 @@ function VideoPlayer() {
     const url = video.src || video.url;
     const platform = video.type || detectPlatform(url);
 
-    // YouTube thumbnail - frame at 1 second
+    // YouTube thumbnail - use mqdefault for better quality
     if (platform === 'youtube') {
       const videoId = getYouTubeId(url);
-      return videoId ? `https://img.youtube.com/vi/${videoId}/1.jpg` : null;
+      return videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null;
     }
     
     // Vimeo thumbnail - frame at 1 second
@@ -175,23 +175,29 @@ function VideoPlayer() {
       }
     }, [video._id, video.src, video.thumbnail, video.type, platform]);
 
-    if (!thumbnailUrl && !isLoading) {
-      return null; // Let video element use its own poster
-    }
-
     return (
       <button
         className="absolute inset-0 w-full h-full bg-black cursor-pointer group"
         onClick={onClick}
         aria-label={`Play ${video.title}`}
       >
-        {thumbnailUrl && (
+        {thumbnailUrl ? (
           <img
             src={thumbnailUrl}
             alt={video.title}
             loading="lazy"
             className="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity duration-200"
           />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-900">
+            {isLoading ? (
+              <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <svg className="w-16 h-16 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M10 16.5l6-4.5-6-4.5v9zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+              </svg>
+            )}
+          </div>
         )}
         {/* Play button overlay */}
         <span className="absolute inset-0 flex items-center justify-center">
@@ -201,12 +207,6 @@ function VideoPlayer() {
             </svg>
           </span>
         </span>
-        {/* Loading indicator */}
-        {isLoading && (
-          <span className="absolute top-2 right-2">
-            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          </span>
-        )}
       </button>
     );
   };
@@ -357,15 +357,6 @@ function VideoPlayer() {
           return (
             <div className="relative w-full h-full bg-black">
               <DirectVideoThumbnail video={video} onClick={() => activateVideo(video._id)} />
-              <video
-                src={videoSrc}
-                title={video.title}
-                className="w-full h-full rounded-lg object-contain bg-black"
-                preload="none"
-                poster={video.thumbnail || ''}
-              >
-                Your browser does not support the video tag.
-              </video>
             </div>
           );
         }
@@ -378,7 +369,6 @@ function VideoPlayer() {
             controls
             autoPlay
             preload="metadata"
-            poster={getVideoThumbnail(video) || video.thumbnail || ''}
           >
             Your browser does not support the video tag.
           </video>
