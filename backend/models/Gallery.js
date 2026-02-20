@@ -5,6 +5,7 @@ const gallerySchema = new mongoose.Schema({
     title: { type: String, required: true },
     category: { type: String, required: true, enum: ['events', 'sports', 'cultural', 'classroom', 'campus', 'other'] },
     description: { type: String, default: '' },
+    year: { type: String, default: '2025-26' }, // Academic year
     isActive: { type: Boolean, default: true },
     isUploaded: { type: Boolean, default: false }, // true if uploaded image
     mimeType: { type: String }, // image/jpeg, image/png, etc.

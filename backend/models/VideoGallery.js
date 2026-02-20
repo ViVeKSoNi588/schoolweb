@@ -7,6 +7,7 @@ const videoGallerySchema = new mongoose.Schema({
     description: { type: String, default: '' },
     type: { type: String, enum: ['youtube', 'facebook', 'instagram', 'vimeo', 'dailymotion', 'uploaded', 'url', 'direct'], default: 'youtube' },
     thumbnail: { type: String }, // Optional thumbnail image URL
+    year: { type: String, default: '2025-26' }, // Academic year
     isActive: { type: Boolean, default: true },
     mimeType: { type: String }, // video/mp4, video/webm, etc.
     filename: { type: String }, // Stored filename for uploaded videos

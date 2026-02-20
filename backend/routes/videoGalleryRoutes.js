@@ -16,10 +16,13 @@ const router = express.Router();
 // Get active gallery videos (public)
 router.get('/', async (req, res) => {
     try {
-        const { category } = req.query;
+        const { category, year } = req.query;
         const filter = { isActive: true };
         if (category && category !== 'all') {
             filter.category = category;
+        }
+        if (year && year !== 'all') {
+            filter.year = year;
         }
         const videos = await VideoGallery.find(filter).sort({ order: 1, createdAt: -1 });
         res.json(videos);
@@ -55,7 +58,7 @@ router.get('/admin', authMiddleware, async (req, res) => {
 // Add video to gallery (YouTube URL or direct video URL)
 router.post('/', authMiddleware, async (req, res) => {
     try {
-        const { title, description, src, type, thumbnail, category, order, isActive } = req.body;
+        const { title, description, src, type, thumbnail, category, order, isActive, year } = req.body;
 
         // Validate required fields
         if (!title || !title.trim()) {
@@ -76,7 +79,8 @@ router.post('/', authMiddleware, async (req, res) => {
             thumbnail: thumbnail || null,
             category: category,
             order: order || 0,
-            isActive: isActive !== false
+            isActive: isActive !== false,
+            year: year || '2025-26'
         });
         await video.save();
         res.status(201).json(video);
@@ -89,7 +93,7 @@ router.post('/', authMiddleware, async (req, res) => {
 // Upload video to gallery as base64 - SAVES TO DISK
 router.post('/upload', authMiddleware, async (req, res) => {
     try {
-        const { videoData, title, description, thumbnail, category, order, isActive } = req.body;
+        const { videoData, title, description, thumbnail, category, order, isActive, year } = req.body;
 
         if (!videoData || !videoData.startsWith('data:video/')) {
             return res.status(400).json({ message: 'Invalid video data. Must be base64 encoded video.' });
@@ -130,6 +134,7 @@ router.post('/upload', authMiddleware, async (req, res) => {
             category: category,
             order: order || 0,
             isActive: isActive !== false,
+            year: year || '2025-26',
             mimeType,
             filename  // Store filename for deletion
         });
