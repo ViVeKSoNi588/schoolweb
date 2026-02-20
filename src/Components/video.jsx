@@ -1,9 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import API_URL from '../config';
 
 function VideoPlayer() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activatedVideos, setActivatedVideos] = useState(new Set());
+
+  const activateVideo = useCallback((id) => {
+    setActivatedVideos(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     fetchVideos();
@@ -71,9 +80,35 @@ function VideoPlayer() {
       case 'youtube': {
         const videoId = getYouTubeId(url);
         if (!videoId) return <p className="text-red-400 text-sm p-2">Invalid YouTube URL</p>;
+        if (!activatedVideos.has(video._id)) {
+          // Show lightweight thumbnail facade instead of loading the full iframe
+          const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+          return (
+            <button
+              className="relative w-full h-full bg-black rounded-lg overflow-hidden cursor-pointer group"
+              onClick={() => activateVideo(video._id)}
+              aria-label={`Play ${video.title}`}
+            >
+              <img
+                src={thumbnailUrl}
+                alt={video.title}
+                loading="lazy"
+                className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-200"
+              />
+              {/* Play button overlay */}
+              <span className="absolute inset-0 flex items-center justify-center">
+                <span className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200">
+                  <svg className="w-5 h-5 text-white ml-1" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </span>
+              </span>
+            </button>
+          );
+        }
         return (
           <iframe
-            src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
+            src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&autoplay=1`}
             title={video.title}
             className="w-full h-full rounded-lg"
             frameBorder="0"
@@ -150,6 +185,7 @@ function VideoPlayer() {
             title={video.title}
             className="w-full h-full rounded-lg object-contain bg-black"
             controls
+            preload="none"
             poster={video.thumbnail || ''}
           >
             Your browser does not support the video tag.

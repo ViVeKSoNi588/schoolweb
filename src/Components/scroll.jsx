@@ -129,6 +129,7 @@ function ImageCarousel({ interval = 3000, category = '' }) {
             <img
               src={image.displayUrl}
               alt={image.alt || 'Carousel Image'}
+              loading={index === 0 ? 'eager' : 'lazy'}
               onLoad={() => handleImageLoad(index)}
               className={`w-full object-cover transition-opacity duration-500 ${
                 loadedImages.has(index) ? 'opacity-100' : 'opacity-0'
