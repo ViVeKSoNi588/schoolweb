@@ -14,10 +14,13 @@ const router = express.Router();
 // Get active gallery photos (public)
 router.get('/', async (req, res) => {
     try {
-        const { category } = req.query;
+        const { category, year } = req.query;
         const filter = { isActive: true };
         if (category && category !== 'all') {
             filter.category = category;
+        }
+        if (year && year !== 'all') {
+            filter.year = year;
         }
         const photos = await Gallery.find(filter).sort({ order: 1, createdAt: -1 });
         res.json(photos);
@@ -53,7 +56,7 @@ router.get('/admin', authMiddleware, async (req, res) => {
 // Add gallery photo (URL)
 router.post('/', authMiddleware, async (req, res) => {
     try {
-        const { src, title, category, description, order, isActive } = req.body;
+        const { src, title, category, description, year, order, isActive } = req.body;
 
         if (!src || !title || !category) {
             return res.status(400).json({ message: 'Source, title, and category are required' });
@@ -64,6 +67,7 @@ router.post('/', authMiddleware, async (req, res) => {
             title,
             category,
             description: description || '',
+            year: year || '2025-26',
             order: order || 0,
             isActive: isActive !== false,
             isUploaded: false
@@ -78,7 +82,7 @@ router.post('/', authMiddleware, async (req, res) => {
 // Upload gallery photo - saves to disk
 router.post('/upload', authMiddleware, async (req, res) => {
     try {
-        const { imageData, title, category, description, order, isActive } = req.body;
+        const { imageData, title, description, category, order, isActive, year } = req.body;
 
         if (!imageData || !imageData.startsWith('data:image/')) {
             return res.status(400).json({ message: 'Invalid image data. Must be base64 encoded image.' });
@@ -117,6 +121,7 @@ router.post('/upload', authMiddleware, async (req, res) => {
             description: description || '',
             order: order || 0,
             isActive: isActive !== false,
+            year: year || '2025-26',
             isUploaded: true,
             mimeType,
             filename

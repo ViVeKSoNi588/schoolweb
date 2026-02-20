@@ -2,8 +2,24 @@ import { useState, useEffect } from 'react';
 import Navbar from './nav';
 import API_URL from '../config';
 
+// Calculate current academic year (June-May cycle)
+const getCurrentAcademicYear = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1; // 1-12
+  
+  // If current month is June or later, academic year is current-next
+  // Otherwise, it's previous-current
+  if (month >= 6) {
+    return `${year}-${String(year + 1).slice(-2)}`;
+  } else {
+    return `${year - 1}-${String(year).slice(-2)}`;
+  }
+};
+
 function VideoGallery() {
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedYear, setSelectedYear] = useState(getCurrentAcademicYear());
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [galleryVideos, setGalleryVideos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,9 +92,14 @@ function VideoGallery() {
     const fetchVideos = async () => {
       try {
         setLoading(true);
-        const url = selectedCategory === 'all' 
-          ? `${API_URL}/video-gallery` 
-          : `${API_URL}/video-gallery?category=${selectedCategory}`;
+        const params = new URLSearchParams();
+        if (selectedCategory !== 'all') {
+          params.append('category', selectedCategory);
+        }
+        if (selectedYear !== 'all') {
+          params.append('year', selectedYear);
+        }
+        const url = `${API_URL}/video-gallery${params.toString() ? '?' + params.toString() : ''}`;
         const response = await fetch(url);
         const data = await response.json();
         setGalleryVideos(data);
@@ -89,7 +110,7 @@ function VideoGallery() {
       }
     };
     fetchVideos();
-  }, [selectedCategory]);
+  }, [selectedCategory, selectedYear]);
 
   // Video categories
   const categories = [
@@ -369,6 +390,21 @@ function VideoGallery() {
       {/* Category Filter */}
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 py-4">
+          {/* Year Selector */}
+          <div className="flex justify-center mb-3">
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 font-medium hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            >
+              <option value="all">All Years</option>
+              <option value="2025-26">2025-26</option>
+              <option value="2024-25">2024-25</option>
+              <option value="2023-24">2023-24</option>
+              <option value="2022-23">2022-23</option>
+            </select>
+          </div>
+          {/* Category Selector */}
           <div className="flex flex-wrap justify-center gap-2 md:gap-3">
             {categories.map((category) => (
               <button

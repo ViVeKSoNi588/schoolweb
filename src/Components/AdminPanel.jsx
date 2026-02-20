@@ -55,8 +55,8 @@ function AdminPanel() {
   const [galleryPhotos, setGalleryPhotos] = useState([]);
   const [galleryVideos, setGalleryVideos] = useState([]);
   const [galleryType, setGalleryType] = useState('photo'); // 'photo' or 'video'
-  const [newGalleryPhoto, setNewGalleryPhoto] = useState({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
-  const [newGalleryVideo, setNewGalleryVideo] = useState({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true });
+  const [newGalleryPhoto, setNewGalleryPhoto] = useState({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true, year: '2025-26' });
+  const [newGalleryVideo, setNewGalleryVideo] = useState({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true, year: '2025-26' });
   const [editingGalleryPhoto, setEditingGalleryPhoto] = useState(null);
   const [editingGalleryVideo, setEditingGalleryVideo] = useState(null);
   const [galleryUploadMode, setGalleryUploadMode] = useState('url'); // 'url' or 'upload'
@@ -2283,7 +2283,7 @@ function AdminPanel() {
                     className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-20 resize-none"
                   />
 
-                  <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="grid grid-cols-2 gap-3 mb-3">
                     <input
                       type="number"
                       placeholder="Order"
@@ -2302,6 +2302,17 @@ function AdminPanel() {
                     </label>
                   </div>
 
+                  <select
+                    value={newGalleryPhoto.year}
+                    onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, year: e.target.value })}
+                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-4"
+                  >
+                    <option value="2025-26">📅 2025-26</option>
+                    <option value="2024-25">📅 2024-25</option>
+                    <option value="2023-24">📅 2023-24</option>
+                    <option value="2022-23">📅 2022-23</option>
+                  </select>
+
                   <div className="flex gap-3">
                     {editingGalleryPhoto ? (
                       <>
@@ -2318,7 +2329,7 @@ function AdminPanel() {
                               });
                               if (res.ok) {
                                 setEditingGalleryPhoto(null);
-                                setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
+                                setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true, year: '2025-26' });
                                 setGalleryUploadPreview('');
                                 fetchGalleryPhotos();
                               }
@@ -2333,7 +2344,7 @@ function AdminPanel() {
                         <button
                           onClick={() => {
                             setEditingGalleryPhoto(null);
-                            setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
+                            setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true, year: '2025-26' });
                             setGalleryUploadPreview('');
                           }}
                           className="flex-1 bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-medium transition-colors"
@@ -2365,7 +2376,7 @@ function AdminPanel() {
                               body: JSON.stringify(body)
                             });
                             if (res.ok) {
-                              setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
+                              setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true, year: '2025-26' });
                               setGalleryUploadPreview('');
                               fetchGalleryPhotos();
                             }
@@ -2551,7 +2562,7 @@ function AdminPanel() {
                     className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-20 resize-none"
                   />
 
-                  <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="grid grid-cols-2 gap-3 mb-3">
                     <input
                       type="number"
                       placeholder="Order"
@@ -2570,6 +2581,17 @@ function AdminPanel() {
                     </label>
                   </div>
 
+                  <select
+                    value={newGalleryVideo.year}
+                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, year: e.target.value })}
+                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-4"
+                  >
+                    <option value="2025-26">📅 2025-26</option>
+                    <option value="2024-25">📅 2024-25</option>
+                    <option value="2023-24">📅 2023-24</option>
+                    <option value="2022-23">📅 2022-23</option>
+                  </select>
+
                   <div className="flex gap-3">
                     {editingGalleryVideo ? (
                       <>
@@ -2586,7 +2608,7 @@ function AdminPanel() {
                               });
                               if (res.ok) {
                                 setEditingGalleryVideo(null);
-                                setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true });
+                                setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true, year: '2025-26' });
                                 fetchGalleryVideos();
                               }
                             } catch (error) {
@@ -2600,7 +2622,7 @@ function AdminPanel() {
                         <button
                           onClick={() => {
                             setEditingGalleryVideo(null);
-                            setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true });
+                            setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true, year: '2025-26' });
                           }}
                           className="flex-1 bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-medium transition-colors"
                         >
@@ -2624,7 +2646,7 @@ function AdminPanel() {
                               body: JSON.stringify(newGalleryVideo)
                             });
                             if (res.ok) {
-                              setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true });
+                              setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true, year: '2025-26' });
                               fetchGalleryVideos();
                             }
                           } catch (error) {
@@ -2688,7 +2710,8 @@ function AdminPanel() {
                                 category: photo.category,
                                 description: photo.description || '',
                                 order: photo.order || 0,
-                                isActive: photo.isActive
+                                isActive: photo.isActive,
+                                year: photo.year || '2025-26'
                               });
                               if (photo.isUploaded) {
                                 setGalleryUploadMode('upload');
@@ -2770,7 +2793,8 @@ function AdminPanel() {
                                 type: video.type || 'youtube',
                                 thumbnail: video.thumbnail || '',
                                 order: video.order || 0,
-                                isActive: video.isActive
+                                isActive: video.isActive,
+                                year: video.year || '2025-26'
                               });
                             }}
                             className="bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded text-xs"
