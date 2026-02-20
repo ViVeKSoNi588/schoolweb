@@ -4,6 +4,8 @@ function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [academicOpen, setAcademicOpen] = useState(false);
   const [mobileAcademicOpen, setMobileAcademicOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [mobileGalleryOpen, setMobileGalleryOpen] = useState(false);
 
   return (
     <nav className="bg-blue-900 shadow-lg w-full relative z-50">
@@ -76,12 +78,33 @@ function Navbar() {
             >
               Admissions
             </a>
-            <a
-              href="/gallery"
-              className="text-white hover:bg-blue-800 px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            {/* Gallery Dropdown */}
+            <div
+              className="relative"
+              onMouseEnter={() => setGalleryOpen(true)}
+              onMouseLeave={() => setGalleryOpen(false)}
             >
-              Gallery
-            </a>
+              <button
+                className="text-white hover:bg-blue-800 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+              >
+                Gallery
+                <svg className={`w-4 h-4 transition-transform ${galleryOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {galleryOpen && (
+                <div className="absolute top-full left-0 pt-2">
+                  <div className="w-48 bg-blue-900 rounded-lg shadow-xl py-2 border border-blue-800">
+                    <a href="/gallery" className="block px-4 py-2 text-white hover:bg-blue-800 text-sm transition-colors text-left">
+                      Photo Gallery
+                    </a>
+                    <a href="/video-gallery" className="block px-4 py-2 text-white hover:bg-blue-800 text-sm transition-colors text-left">
+                      Video Gallery
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
             <a
               href="/contact"
               className="text-white hover:bg-blue-800 px-4 py-2 rounded-md text-sm font-medium transition-colors"
@@ -159,12 +182,28 @@ function Navbar() {
             >
               Admissions
             </a>
-            <a
-              href="/gallery"
-              className="text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-base font-medium"
-            >
-              Gallery
-            </a>
+            {/* Mobile Gallery Dropdown */}
+            <div>
+              <button
+                onClick={() => setMobileGalleryOpen(!mobileGalleryOpen)}
+                className="text-white hover:bg-blue-700 w-full px-3 py-2 rounded-md text-base font-medium flex items-center justify-center gap-1"
+              >
+                Gallery
+                <svg className={`w-4 h-4 transition-transform ${mobileGalleryOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {mobileGalleryOpen && (
+                <div className="bg-blue-900 rounded-md ml-4 mt-1 space-y-1">
+                  <a href="/gallery" className="text-blue-200 hover:text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-sm">
+                    Photo Gallery
+                  </a>
+                  <a href="/video-gallery" className="text-blue-200 hover:text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-sm">
+                    Video Gallery
+                  </a>
+                </div>
+              )}
+            </div>
             <a
               href="/contact"
               className="text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-base font-medium"

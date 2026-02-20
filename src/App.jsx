@@ -12,6 +12,7 @@ import PrePrimary from './Components/PrePrimary'
 import Contact from './Components/Contact'
 import Admission from './Components/Admission'
 import Gallery from './Components/gallary'
+import VideoGallery from './Components/VideoGallery'
 import AboutUs from './Components/AboutUs'
 import Curriculum from './Components/Curriculum'
 import AnnualFixture from './Components/AnnualFixture'
@@ -115,6 +116,7 @@ function App() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/admissions" element={<Admission />} />
         <Route path="/gallery" element={<Gallery />} />
+        <Route path="/video-gallery" element={<VideoGallery />} />
         <Route path="/about" element={<AboutUs />} />
         <Route path="/academics/curriculum" element={<Curriculum />} />
         <Route path="/academics/annual-fixture" element={<AnnualFixture />} />
