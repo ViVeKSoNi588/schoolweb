@@ -53,8 +53,12 @@ function AdminPanel() {
 
   // Gallery management
   const [galleryPhotos, setGalleryPhotos] = useState([]);
+  const [galleryVideos, setGalleryVideos] = useState([]);
+  const [galleryType, setGalleryType] = useState('photo'); // 'photo' or 'video'
   const [newGalleryPhoto, setNewGalleryPhoto] = useState({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
+  const [newGalleryVideo, setNewGalleryVideo] = useState({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true });
   const [editingGalleryPhoto, setEditingGalleryPhoto] = useState(null);
+  const [editingGalleryVideo, setEditingGalleryVideo] = useState(null);
   const [galleryUploadMode, setGalleryUploadMode] = useState('url'); // 'url' or 'upload'
   const [galleryUploadPreview, setGalleryUploadPreview] = useState('');
   const [galleryCategory, setGalleryCategory] = useState('all'); // filter for viewing
@@ -155,6 +159,21 @@ function AdminPanel() {
     }
   };
 
+  // Fetch gallery videos
+  const fetchGalleryVideos = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/video-gallery`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGalleryVideos(data);
+      }
+    } catch (error) {
+      console.error('Error fetching video gallery:', error);
+    }
+  };
+
   // Fetch curriculum data
   const fetchCurriculum = async () => {
     try {
@@ -225,6 +244,7 @@ function AdminPanel() {
   useEffect(() => {
     if (activeTab === 'gallery' && isLoggedIn && token) {
       fetchGalleryPhotos();
+      fetchGalleryVideos();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isLoggedIn, token]);
@@ -658,6 +678,59 @@ function AdminPanel() {
       if (match) return match[1];
     }
     return null;
+  };
+
+  // Extract Vimeo video ID
+  const getVimeoId = (url) => {
+    if (!url) return null;
+    const match = url.match(/vimeo\.com\/(\d+)/);
+    return match ? match[1] : null;
+  };
+
+  // Extract Instagram ID
+  const getInstagramId = (url) => {
+    if (!url) return null;
+    const match = url.match(/instagram\.com\/(?:p|reel|tv)\/([^/?]+)/);
+    return match ? match[1] : null;
+  };
+
+  // Get video thumbnail automatically
+  const getVideoThumbnail = (video) => {
+    if (!video || !video.src) return null;
+    
+    const url = video.src;
+    const type = video.type;
+
+    // YouTube thumbnail - frame at 1 second
+    if (type === 'youtube') {
+      const videoId = getYouTubeId(url);
+      return videoId ? `https://img.youtube.com/vi/${videoId}/1.jpg` : null;
+    }
+    
+    // Vimeo thumbnail - frame at 1 second
+    if (type === 'vimeo') {
+      const vimeoId = getVimeoId(url);
+      return vimeoId ? `https://vumbnail.com/${vimeoId}.jpg?t=1` : null;
+    }
+    
+    // Instagram thumbnail
+    if (type === 'instagram') {
+      const instaId = getInstagramId(url);
+      return instaId ? `https://www.instagram.com/p/${instaId}/media/?size=l` : null;
+    }
+    
+    // For direct videos, generate thumbnail from video
+    if (type === 'direct' || type === 'url' || type === 'uploaded') {
+      // If custom thumbnail exists, use it
+      if (video.thumbnail) return video.thumbnail;
+      
+      // Otherwise, we'll need to generate it dynamically
+      // For now, return null and let the fallback icon show
+      return null;
+    }
+    
+    // Return custom thumbnail if available
+    return video.thumbnail || null;
   };
 
   // Collection handlers
@@ -1950,58 +2023,58 @@ function AdminPanel() {
                   <p>Loading videos...</p>
                 </div>
               ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-auto">
                 {documents.map((video) => (
                   <div 
                     key={video._id} 
-                    className={`bg-gray-700/50 rounded-xl overflow-hidden ${!video.isActive && 'opacity-50'}`}
+                    className={`bg-gray-700/50 rounded-lg overflow-hidden ${!video.isActive && 'opacity-50'}`}
                   >
                     {/* Video Thumbnail */}
-                    <div className="relative aspect-video bg-gray-800">
-                      {video.thumbnail ? (
-                        <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
-                      ) : video.type === 'youtube' && getYouTubeId(video.src) ? (
-                        <img 
-                          src={`https://img.youtube.com/vi/${getYouTubeId(video.src)}/mqdefault.jpg`}
-                          alt={video.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-5xl">🎥</span>
-                        </div>
-                      )}
-                      
-                      {/* Type Badge */}
-                      <div className="absolute top-2 right-2">
-                        <span className={`text-xs px-2 py-1 rounded font-medium ${
-                          video.type === 'youtube' ? 'bg-red-600 text-white' 
-                            : video.type === 'facebook' ? 'bg-blue-600 text-white'
-                            : video.type === 'instagram' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white'
-                            : video.type === 'vimeo' ? 'bg-cyan-600 text-white'
-                            : video.type === 'uploaded' ? 'bg-green-600 text-white'
-                            : 'bg-gray-600 text-white'
-                        }`}>
-                          {video.type === 'youtube' ? '▶️ YouTube' 
-                            : video.type === 'facebook' ? '📘 Facebook'
-                            : video.type === 'instagram' ? '📷 Instagram'
-                            : video.type === 'vimeo' ? '🎥 Vimeo'
-                            : video.type === 'uploaded' ? '📤 Uploaded' 
-                            : '🔗 URL'}
-                        </span>
-                      </div>
-                      
-                      {/* Active Badge */}
-                      <div className="absolute top-2 left-2">
-                        <span className={`text-xs px-2 py-1 rounded ${video.isActive ? 'bg-green-600' : 'bg-gray-600'}`}>
-                          {video.isActive ? '✅ Active' : '❌ Inactive'}
-                        </span>
-                      </div>
+                    <div className="relative bg-gray-800">
+                      {(() => {
+                        const thumbnail = getVideoThumbnail(video);
+                        return thumbnail ? (
+                          <img 
+                            src={thumbnail} 
+                            alt={video.title} 
+                            className="w-full h-32 object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.parentElement.innerHTML = `
+                                <div class="w-full h-32 flex items-center justify-center ${
+                                  video.type === 'vimeo' ? 'bg-cyan-900/30' 
+                                    : video.type === 'facebook' ? 'bg-blue-900/30'
+                                    : video.type === 'instagram' ? 'bg-gradient-to-br from-purple-900/30 to-pink-900/30'
+                                    : 'bg-gray-800'
+                                }">
+                                  <span class="text-4xl">🎥</span>
+                                </div>
+                              `;
+                            }}
+                          />
+                        ) : video.type === 'vimeo' ? (
+                          <div className="w-full h-32 flex items-center justify-center bg-cyan-900/30">
+                            <span className="text-5xl">🎥</span>
+                          </div>
+                        ) : video.type === 'facebook' ? (
+                          <div className="w-full h-32 flex items-center justify-center bg-blue-900/30">
+                            <span className="text-5xl">📘</span>
+                          </div>
+                        ) : video.type === 'instagram' ? (
+                          <div className="w-full h-32 flex items-center justify-center bg-gradient-to-br from-purple-900/30 to-pink-900/30">
+                            <span className="text-5xl">📷</span>
+                          </div>
+                        ) : (
+                          <div className="w-full h-32 flex items-center justify-center">
+                            <span className="text-4xl">🎥</span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Video Info */}
                     {editingVideo?._id === video._id ? (
-                      <div className="p-3 space-y-2">
+                      <div className="p-2 space-y-2">
                         <input
                           type="text"
                           value={editingVideo.title}
@@ -2020,7 +2093,7 @@ function AdminPanel() {
                             type="number"
                             value={editingVideo.order}
                             onChange={(e) => setEditingVideo({ ...editingVideo, order: parseInt(e.target.value) || 0 })}
-                            className="w-20 p-2 bg-gray-600 rounded text-sm"
+                            className="w-16 p-2 bg-gray-600 rounded text-sm"
                             placeholder="Order"
                           />
                           <label className="flex items-center gap-1 text-sm">
@@ -2033,33 +2106,36 @@ function AdminPanel() {
                           </label>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={handleUpdateVideo} className="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded text-sm">
-                            💾 Save
-                          </button>
-                          <button onClick={() => setEditingVideo(null)} className="flex-1 bg-gray-600 hover:bg-gray-500 py-2 rounded text-sm">
-                            Cancel
-                          </button>
+                          <button onClick={handleUpdateVideo} className="flex-1 bg-green-600 py-1 rounded text-xs">Save</button>
+                          <button onClick={() => setEditingVideo(null)} className="flex-1 bg-gray-600 py-1 rounded text-xs">Cancel</button>
                         </div>
                       </div>
                     ) : (
-                      <div className="p-3">
-                        <h4 className="font-medium truncate">{video.title}</h4>
-                        {video.description && (
-                          <p className="text-xs text-gray-400 mt-1 line-clamp-2">{video.description}</p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">Order: {video.order}</p>
-                        <div className="flex gap-2 mt-3">
+                      <div className="p-2">
+                        <p className="font-medium truncate text-sm">{video.title}</p>
+                        <p className="text-xs text-gray-400">
+                          Order: {video.order} • {video.isActive ? '✅' : '❌'}
+                        </p>
+                        <p className="text-xs text-blue-400 mt-1">
+                          {video.type === 'youtube' ? '▶️ YouTube' 
+                            : video.type === 'facebook' ? '📘 Facebook'
+                            : video.type === 'instagram' ? '📷 Instagram'
+                            : video.type === 'vimeo' ? '🎥 Vimeo'
+                            : video.type === 'uploaded' ? '📤 Uploaded' 
+                            : '🔗 URL'}
+                        </p>
+                        <div className="flex gap-2 mt-2">
                           <button 
                             onClick={() => setEditingVideo(video)} 
-                            className="flex-1 bg-yellow-600 hover:bg-yellow-700 py-2 rounded text-sm"
+                            className="flex-1 bg-yellow-600 hover:bg-yellow-700 py-1 rounded text-xs"
                           >
-                            ✏️ Edit
+                            Edit
                           </button>
                           <button 
                             onClick={() => handleDeleteVideo(video._id)} 
-                            className="flex-1 bg-red-600 hover:bg-red-700 py-2 rounded text-sm"
+                            className="flex-1 bg-red-600 hover:bg-red-700 py-1 rounded text-xs"
                           >
-                            🗑️ Delete
+                            Delete
                           </button>
                         </div>
                       </div>
@@ -2075,205 +2151,502 @@ function AdminPanel() {
         {/* ============ GALLERY TAB ============ */}
         {activeTab === 'gallery' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Add New Photo Form */}
+            {/* Add New Photo/Video Form */}
             <div className="bg-gray-800 p-6 rounded-xl">
-              <h3 className="text-lg font-bold text-white mb-4">
-                {editingGalleryPhoto ? '✏️ Edit Photo' : '➕ Add New Photo'}
-              </h3>
-              
-              {/* Upload Mode Toggle */}
+              {/* Type Toggle - Photo or Video */}
               <div className="flex gap-2 mb-4">
                 <button
-                  onClick={() => { setGalleryUploadMode('url'); setGalleryUploadPreview(''); }}
+                  onClick={() => {
+                    setGalleryType('photo');
+                    setEditingGalleryPhoto(null);
+                    setEditingGalleryVideo(null);
+                  }}
                   className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    galleryUploadMode === 'url' 
-                      ? 'bg-blue-600 text-white' 
+                    galleryType === 'photo' 
+                      ? 'bg-indigo-600 text-white' 
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                   }`}
                 >
-                  🔗 URL
+                  📷 Photo
                 </button>
                 <button
-                  onClick={() => { setGalleryUploadMode('upload'); setNewGalleryPhoto(prev => ({ ...prev, src: '' })); }}
+                  onClick={() => {
+                    setGalleryType('video');
+                    setEditingGalleryPhoto(null);
+                    setEditingGalleryVideo(null);
+                  }}
                   className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    galleryUploadMode === 'upload' 
-                      ? 'bg-blue-600 text-white' 
+                    galleryType === 'video' 
+                      ? 'bg-indigo-600 text-white' 
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                   }`}
                 >
-                  📤 Upload
+                  🎬 Video
                 </button>
               </div>
 
-              {galleryUploadMode === 'url' ? (
-                <input
-                  type="text"
-                  placeholder="Image URL"
-                  value={newGalleryPhoto.src}
-                  onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, src: e.target.value })}
-                  className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
-                />
-              ) : (
-                <div className="mb-3">
-                  <label className="block w-full bg-gray-700 text-white p-3 rounded-lg cursor-pointer hover:bg-gray-600 transition-colors text-center">
-                    📷 Choose Image File
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setGalleryUploadPreview(reader.result);
-                            setNewGalleryPhoto({ ...newGalleryPhoto, src: reader.result });
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="hidden"
-                    />
-                  </label>
-                  {galleryUploadPreview && (
-                    <img 
-                      src={galleryUploadPreview} 
-                      alt="Preview" 
-                      className="mt-3 w-full h-40 object-cover rounded-lg"
-                    />
-                  )}
-                </div>
-              )}
-
-              <input
-                type="text"
-                placeholder="Photo Title *"
-                value={newGalleryPhoto.title}
-                onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, title: e.target.value })}
-                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
-              />
-
-              <select
-                value={newGalleryPhoto.category}
-                onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, category: e.target.value })}
-                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
-              >
-                <option value="events">🎉 School Events</option>
-                <option value="sports">⚽ Sports Day</option>
-                <option value="cultural">🎭 Cultural Programs</option>
-                <option value="classroom">📚 Classroom Activities</option>
-                <option value="campus">🏫 Campus</option>
-                <option value="other">📷 Other</option>
-              </select>
-
-              <textarea
-                placeholder="Description (optional)"
-                value={newGalleryPhoto.description}
-                onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, description: e.target.value })}
-                className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-20 resize-none"
-              />
-
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <input
-                  type="number"
-                  placeholder="Order"
-                  value={newGalleryPhoto.order}
-                  onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, order: parseInt(e.target.value) || 0 })}
-                  className="bg-gray-700 text-white p-3 rounded-lg"
-                />
-                <label className="flex items-center gap-2 bg-gray-700 p-3 rounded-lg cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={newGalleryPhoto.isActive}
-                    onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, isActive: e.target.checked })}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-white text-sm">Active</span>
-                </label>
-              </div>
-
-              <div className="flex gap-3">
-                {editingGalleryPhoto ? (
-                  <>
+              {/* PHOTO FORM */}
+              {galleryType === 'photo' && (
+                <>
+                  <h3 className="text-lg font-bold text-white mb-4">
+                    {editingGalleryPhoto ? '✏️ Edit Photo' : '➕ Add New Photo'}
+                  </h3>
+                  
+                  {/* Upload Mode Toggle */}
+                  <div className="flex gap-2 mb-4">
                     <button
-                      onClick={async () => {
-                        try {
-                          const res = await fetch(`${API_URL}/admin/gallery/${editingGalleryPhoto._id}`, {
-                            method: 'PUT',
-                            headers: { 
-                              'Content-Type': 'application/json',
-                              Authorization: `Bearer ${token}` 
-                            },
-                            body: JSON.stringify(newGalleryPhoto)
-                          });
-                          if (res.ok) {
+                      onClick={() => { setGalleryUploadMode('url'); setGalleryUploadPreview(''); }}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        galleryUploadMode === 'url' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      🔗 URL
+                    </button>
+                    <button
+                      onClick={() => { setGalleryUploadMode('upload'); setNewGalleryPhoto(prev => ({ ...prev, src: '' })); }}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        galleryUploadMode === 'upload' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      📤 Upload
+                    </button>
+                  </div>
+
+                  {galleryUploadMode === 'url' ? (
+                    <input
+                      type="text"
+                      placeholder="Image URL"
+                      value={newGalleryPhoto.src}
+                      onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, src: e.target.value })}
+                      className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+                    />
+                  ) : (
+                    <div className="mb-3">
+                      <label className="block w-full bg-gray-700 text-white p-3 rounded-lg cursor-pointer hover:bg-gray-600 transition-colors text-center">
+                        📷 Choose Image File
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setGalleryUploadPreview(reader.result);
+                                setNewGalleryPhoto({ ...newGalleryPhoto, src: reader.result });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                      {galleryUploadPreview && (
+                        <img 
+                          src={galleryUploadPreview} 
+                          alt="Preview" 
+                          className="mt-3 w-full h-40 object-cover rounded-lg"
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  <input
+                    type="text"
+                    placeholder="Photo Title *"
+                    value={newGalleryPhoto.title}
+                    onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, title: e.target.value })}
+                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+                  />
+
+                  <select
+                    value={newGalleryPhoto.category}
+                    onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, category: e.target.value })}
+                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+                  >
+                    <option value="events">🎉 School Events</option>
+                    <option value="sports">⚽ Sports Day</option>
+                    <option value="cultural">🎭 Cultural Programs</option>
+                    <option value="classroom">📚 Classroom Activities</option>
+                    <option value="campus">🏫 Campus</option>
+                    <option value="other">📷 Other</option>
+                  </select>
+
+                  <textarea
+                    placeholder="Description (optional)"
+                    value={newGalleryPhoto.description}
+                    onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, description: e.target.value })}
+                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-20 resize-none"
+                  />
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <input
+                      type="number"
+                      placeholder="Order"
+                      value={newGalleryPhoto.order}
+                      onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, order: parseInt(e.target.value) || 0 })}
+                      className="bg-gray-700 text-white p-3 rounded-lg"
+                    />
+                    <label className="flex items-center gap-2 bg-gray-700 p-3 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newGalleryPhoto.isActive}
+                        onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, isActive: e.target.checked })}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-white text-sm">Active</span>
+                    </label>
+                  </div>
+
+                  <div className="flex gap-3">
+                    {editingGalleryPhoto ? (
+                      <>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`${API_URL}/admin/gallery/${editingGalleryPhoto._id}`, {
+                                method: 'PUT',
+                                headers: { 
+                                  'Content-Type': 'application/json',
+                                  Authorization: `Bearer ${token}` 
+                                },
+                                body: JSON.stringify(newGalleryPhoto)
+                              });
+                              if (res.ok) {
+                                setEditingGalleryPhoto(null);
+                                setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
+                                setGalleryUploadPreview('');
+                                fetchGalleryPhotos();
+                              }
+                            } catch (error) {
+                              console.error('Error updating photo:', error);
+                            }
+                          }}
+                          className="flex-1 bg-green-600 hover:bg-green-700 py-3 rounded-lg font-medium transition-colors"
+                        >
+                          💾 Save Changes
+                        </button>
+                        <button
+                          onClick={() => {
                             setEditingGalleryPhoto(null);
                             setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
                             setGalleryUploadPreview('');
-                            fetchGalleryPhotos();
+                          }}
+                          className="flex-1 bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-medium transition-colors"
+                        >
+                          ❌ Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          if (!newGalleryPhoto.src || !newGalleryPhoto.title) {
+                            alert('Please provide image and title');
+                            return;
                           }
-                        } catch (error) {
-                          console.error('Error updating photo:', error);
-                        }
-                      }}
-                      className="flex-1 bg-green-600 hover:bg-green-700 py-3 rounded-lg font-medium transition-colors"
-                    >
-                      💾 Save Changes
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingGalleryPhoto(null);
-                        setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
-                        setGalleryUploadPreview('');
-                      }}
-                      className="flex-1 bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-medium transition-colors"
-                    >
-                      ❌ Cancel
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={async () => {
-                      if (!newGalleryPhoto.src || !newGalleryPhoto.title) {
-                        alert('Please provide image and title');
-                        return;
-                      }
-                      try {
-                        const endpoint = galleryUploadMode === 'upload' 
-                          ? `${API_URL}/admin/gallery/upload`
-                          : `${API_URL}/admin/gallery`;
-                        const body = galleryUploadMode === 'upload'
-                          ? { imageData: newGalleryPhoto.src, ...newGalleryPhoto }
-                          : newGalleryPhoto;
-                        
-                        const res = await fetch(endpoint, {
-                          method: 'POST',
-                          headers: { 
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${token}` 
-                          },
-                          body: JSON.stringify(body)
-                        });
-                        if (res.ok) {
-                          setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
-                          setGalleryUploadPreview('');
-                          fetchGalleryPhotos();
-                        }
-                      } catch (error) {
-                        console.error('Error adding photo:', error);
-                      }
-                    }}
-                    className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-medium transition-colors"
+                          try {
+                            const endpoint = galleryUploadMode === 'upload' 
+                              ? `${API_URL}/admin/gallery/upload`
+                              : `${API_URL}/admin/gallery`;
+                            const body = galleryUploadMode === 'upload'
+                              ? { imageData: newGalleryPhoto.src, ...newGalleryPhoto }
+                              : newGalleryPhoto;
+                            
+                            const res = await fetch(endpoint, {
+                              method: 'POST',
+                              headers: { 
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${token}` 
+                              },
+                              body: JSON.stringify(body)
+                            });
+                            if (res.ok) {
+                              setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true });
+                              setGalleryUploadPreview('');
+                              fetchGalleryPhotos();
+                            }
+                          } catch (error) {
+                            console.error('Error adding photo:', error);
+                          }
+                        }}
+                        className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-medium transition-colors"
+                      >
+                        ➕ Add Photo
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* VIDEO FORM */}
+              {galleryType === 'video' && (
+                <>
+                  <h3 className="text-lg font-bold text-white mb-4">
+                    {editingGalleryVideo ? '✏️ Edit Video' : '➕ Add New Video'}
+                  </h3>
+
+                  <select
+                    value={newGalleryVideo.type}
+                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, type: e.target.value })}
+                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
                   >
-                    ➕ Add Photo
-                  </button>
-                )}
-              </div>
+                    <option value="youtube">🎥 YouTube</option>
+                    <option value="url">🔗 Video URL</option>
+                    <option value="facebook">📘 Facebook</option>
+                    <option value="vimeo">📹 Vimeo</option>
+                    <option value="instagram">📸 Instagram</option>
+                  </select>
+
+                  <input
+                    type="text"
+                    placeholder={`${newGalleryVideo.type === 'youtube' ? 'YouTube' : 'Video'} URL *`}
+                    value={newGalleryVideo.src}
+                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, src: e.target.value })}
+                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+                  />
+
+                  {/* Video Preview */}
+                  {newGalleryVideo.src && (() => {
+                    const renderVideoPreview = () => {
+                      const url = newGalleryVideo.src;
+                      const type = newGalleryVideo.type;
+
+                      // Helper functions
+                      const getYouTubeId = (url) => {
+                        const patterns = [
+                          /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+                          /^([a-zA-Z0-9_-]{11})$/
+                        ];
+                        for (const pattern of patterns) {
+                          const match = url.match(pattern);
+                          if (match) return match[1];
+                        }
+                        return null;
+                      };
+
+                      const getVimeoId = (url) => {
+                        const match = url.match(/vimeo\.com\/(\d+)/);
+                        return match ? match[1] : null;
+                      };
+
+                      const getInstagramId = (url) => {
+                        const match = url.match(/instagram\.com\/(?:p|reel|tv)\/([^/?]+)/);
+                        return match ? match[1] : null;
+                      };
+
+                      // Render based on video type
+                      switch (type) {
+                        case 'youtube': {
+                          const videoId = getYouTubeId(url);
+                          if (!videoId) return <p className="text-red-400 text-sm">❌ Invalid YouTube URL</p>;
+                          return (
+                            <iframe
+                              src={`https://www.youtube.com/embed/${videoId}`}
+                              title="Video Preview"
+                              className="w-full h-full"
+                              frameBorder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          );
+                        }
+
+                        case 'facebook': {
+                          const encodedUrl = encodeURIComponent(url);
+                          return (
+                            <iframe
+                              src={`https://www.facebook.com/plugins/video.php?href=${encodedUrl}&show_text=false`}
+                              title="Video Preview"
+                              className="w-full h-full"
+                              frameBorder="0"
+                              allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                              allowFullScreen
+                            />
+                          );
+                        }
+
+                        case 'instagram': {
+                          const instaId = getInstagramId(url);
+                          if (!instaId) return <p className="text-red-400 text-sm">❌ Invalid Instagram URL</p>;
+                          return (
+                            <iframe
+                              src={`https://www.instagram.com/p/${instaId}/embed`}
+                              title="Video Preview"
+                              className="w-full h-full"
+                              frameBorder="0"
+                              allowFullScreen
+                            />
+                          );
+                        }
+
+                        case 'vimeo': {
+                          const vimeoId = getVimeoId(url);
+                          if (!vimeoId) return <p className="text-red-400 text-sm">❌ Invalid Vimeo URL</p>;
+                          return (
+                            <iframe
+                              src={`https://player.vimeo.com/video/${vimeoId}`}
+                              title="Video Preview"
+                              className="w-full h-full"
+                              frameBorder="0"
+                              allow="autoplay; fullscreen; picture-in-picture"
+                              allowFullScreen
+                            />
+                          );
+                        }
+
+                        case 'direct':
+                        default: {
+                          return (
+                            <video
+                              src={url}
+                              controls
+                              className="w-full h-full"
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          );
+                        }
+                      }
+                    };
+
+                    return (
+                      <div className="mb-3">
+                        <p className="text-gray-400 text-sm mb-2">Preview:</p>
+                        <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                          {renderVideoPreview()}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <input
+                    type="text"
+                    placeholder="Video Title *"
+                    value={newGalleryVideo.title}
+                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, title: e.target.value })}
+                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+                  />
+
+                  <select
+                    value={newGalleryVideo.category}
+                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, category: e.target.value })}
+                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+                  >
+                    <option value="events">🎉 School Events</option>
+                    <option value="sports">⚽ Sports Day</option>
+                    <option value="cultural">🎭 Cultural Programs</option>
+                    <option value="classroom">📚 Classroom Activities</option>
+                    <option value="campus">🏫 Campus Tour</option>
+                    <option value="other">🎬 Other</option>
+                  </select>
+
+                  <textarea
+                    placeholder="Description (optional)"
+                    value={newGalleryVideo.description}
+                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, description: e.target.value })}
+                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-20 resize-none"
+                  />
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <input
+                      type="number"
+                      placeholder="Order"
+                      value={newGalleryVideo.order}
+                      onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, order: parseInt(e.target.value) || 0 })}
+                      className="bg-gray-700 text-white p-3 rounded-lg"
+                    />
+                    <label className="flex items-center gap-2 bg-gray-700 p-3 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newGalleryVideo.isActive}
+                        onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, isActive: e.target.checked })}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-white text-sm">Active</span>
+                    </label>
+                  </div>
+
+                  <div className="flex gap-3">
+                    {editingGalleryVideo ? (
+                      <>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`${API_URL}/admin/video-gallery/${editingGalleryVideo._id}`, {
+                                method: 'PUT',
+                                headers: { 
+                                  'Content-Type': 'application/json',
+                                  Authorization: `Bearer ${token}` 
+                                },
+                                body: JSON.stringify(newGalleryVideo)
+                              });
+                              if (res.ok) {
+                                setEditingGalleryVideo(null);
+                                setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true });
+                                fetchGalleryVideos();
+                              }
+                            } catch (error) {
+                              console.error('Error updating video:', error);
+                            }
+                          }}
+                          className="flex-1 bg-green-600 hover:bg-green-700 py-3 rounded-lg font-medium transition-colors"
+                        >
+                          💾 Save Changes
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingGalleryVideo(null);
+                            setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true });
+                          }}
+                          className="flex-1 bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-medium transition-colors"
+                        >
+                          ❌ Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          if (!newGalleryVideo.src || !newGalleryVideo.title) {
+                            alert('Please provide video URL and title');
+                            return;
+                          }
+                          try {
+                            const res = await fetch(`${API_URL}/admin/video-gallery`, {
+                              method: 'POST',
+                              headers: { 
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${token}` 
+                              },
+                              body: JSON.stringify(newGalleryVideo)
+                            });
+                            if (res.ok) {
+                              setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true });
+                              fetchGalleryVideos();
+                            }
+                          } catch (error) {
+                            console.error('Error adding video:', error);
+                          }
+                        }}
+                        className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-medium transition-colors"
+                      >
+                        ➕ Add Video
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Gallery Photos List */}
+            {/* Gallery Photos/Videos List */}
             <div className="lg:col-span-2 bg-gray-800 p-6 rounded-xl">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-white">🖼️ Gallery Photos ({galleryPhotos.length})</h3>
+                <h3 className="text-lg font-bold text-white">
+                  {galleryType === 'photo' ? `📷 Gallery Photos (${galleryPhotos.length})` : `🎬 Gallery Videos (${galleryVideos.length})`}
+                </h3>
                 <select
                   value={galleryCategory}
                   onChange={(e) => setGalleryCategory(e.target.value)}
@@ -2285,79 +2658,165 @@ function AdminPanel() {
                   <option value="cultural">🎭 Cultural</option>
                   <option value="classroom">📚 Classroom</option>
                   <option value="campus">🏫 Campus</option>
-                  <option value="other">📷 Other</option>
+                  <option value="other">{galleryType === 'photo' ? '📷' : '🎬'} Other</option>
                 </select>
               </div>
               
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
-                {galleryPhotos
-                  .filter(photo => galleryCategory === 'all' || photo.category === galleryCategory)
-                  .map((photo) => (
-                  <div key={photo._id} className={`relative group rounded-lg overflow-hidden ${!photo.isActive ? 'opacity-50' : ''}`}>
-                    <img 
-                      src={photo.src} 
-                      alt={photo.title} 
-                      className="w-full h-32 object-cover"
-                    />
-                    {/* Overlay with actions */}
-                    <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
-                      <p className="text-white text-xs font-medium text-center line-clamp-2">{photo.title}</p>
-                      <span className="text-xs px-2 py-0.5 bg-blue-600 rounded capitalize">{photo.category}</span>
-                      <div className="flex gap-1 mt-1">
-                        <button
-                          onClick={() => {
-                            setEditingGalleryPhoto(photo);
-                            setNewGalleryPhoto({
-                              src: photo.src,
-                              title: photo.title,
-                              category: photo.category,
-                              description: photo.description || '',
-                              order: photo.order || 0,
-                              isActive: photo.isActive
-                            });
-                            if (photo.isUploaded) {
-                              setGalleryUploadMode('upload');
-                              setGalleryUploadPreview(photo.src);
-                            } else {
-                              setGalleryUploadMode('url');
-                            }
-                          }}
-                          className="bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded text-xs"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={async () => {
-                            if (confirm('Delete this photo?')) {
-                              try {
-                                await fetch(`${API_URL}/admin/gallery/${photo._id}`, {
-                                  method: 'DELETE',
-                                  headers: { Authorization: `Bearer ${token}` }
-                                });
-                                fetchGalleryPhotos();
-                              } catch (error) {
-                                console.error('Error deleting photo:', error);
+              {/* PHOTOS LIST */}
+              {galleryType === 'photo' && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
+                  {galleryPhotos
+                    .filter(photo => galleryCategory === 'all' || photo.category === galleryCategory)
+                    .map((photo) => (
+                    <div key={photo._id} className={`relative group rounded-lg overflow-hidden ${!photo.isActive ? 'opacity-50' : ''}`}>
+                      <img 
+                        src={photo.src} 
+                        alt={photo.title} 
+                        className="w-full h-32 object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+                        <p className="text-white text-xs font-medium text-center line-clamp-2">{photo.title}</p>
+                        <span className="text-xs px-2 py-0.5 bg-blue-600 rounded capitalize">{photo.category}</span>
+                        <div className="flex gap-1 mt-1">
+                          <button
+                            onClick={() => {
+                              setGalleryType('photo');
+                              setEditingGalleryPhoto(photo);
+                              setNewGalleryPhoto({
+                                src: photo.src,
+                                title: photo.title,
+                                category: photo.category,
+                                description: photo.description || '',
+                                order: photo.order || 0,
+                                isActive: photo.isActive
+                              });
+                              if (photo.isUploaded) {
+                                setGalleryUploadMode('upload');
+                                setGalleryUploadPreview(photo.src);
+                              } else {
+                                setGalleryUploadMode('url');
                               }
-                            }
-                          }}
-                          className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
-                        >
-                          🗑️
-                        </button>
+                            }}
+                            className="bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded text-xs"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm('Delete this photo?')) {
+                                try {
+                                  await fetch(`${API_URL}/admin/gallery/${photo._id}`, {
+                                    method: 'DELETE',
+                                    headers: { Authorization: `Bearer ${token}` }
+                                  });
+                                  fetchGalleryPhotos();
+                                } catch (error) {
+                                  console.error('Error deleting photo:', error);
+                                }
+                              }
+                            }}
+                            className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
+                      {!photo.isActive && (
+                        <span className="absolute top-1 right-1 text-xs bg-red-600 px-1 rounded">Hidden</span>
+                      )}
                     </div>
-                    {/* Status badge */}
-                    {!photo.isActive && (
-                      <span className="absolute top-1 right-1 text-xs bg-red-600 px-1 rounded">Hidden</span>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
-              {galleryPhotos.filter(photo => galleryCategory === 'all' || photo.category === galleryCategory).length === 0 && (
+              {/* VIDEOS LIST */}
+              {galleryType === 'video' && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
+                  {galleryVideos
+                    .filter(video => galleryCategory === 'all' || video.category === galleryCategory)
+                    .map((video) => (
+                    <div key={video._id} className={`relative group rounded-lg overflow-hidden bg-gray-900 ${!video.isActive ? 'opacity-50' : ''}`}>
+                      <div className="w-full h-32 flex items-center justify-center bg-black">
+                        {(() => {
+                          const thumbnail = getVideoThumbnail(video);
+                          return thumbnail ? (
+                            <img 
+                              src={thumbnail} 
+                              alt={video.title} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<span class="text-4xl">🎬</span>';
+                              }}
+                            />
+                          ) : (
+                            <span className="text-4xl">🎬</span>
+                          );
+                        })()}
+                      </div>
+                      <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+                        <p className="text-white text-xs font-medium text-center line-clamp-2">{video.title}</p>
+                        <span className="text-xs px-2 py-0.5 bg-purple-600 rounded capitalize">{video.category}</span>
+                        <div className="flex gap-1 mt-1">
+                          <button
+                            onClick={() => {
+                              setGalleryType('video');
+                              setEditingGalleryVideo(video);
+                              setNewGalleryVideo({
+                                src: video.src,
+                                title: video.title,
+                                category: video.category,
+                                description: video.description || '',
+                                type: video.type || 'youtube',
+                                thumbnail: video.thumbnail || '',
+                                order: video.order || 0,
+                                isActive: video.isActive
+                              });
+                            }}
+                            className="bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded text-xs"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm('Delete this video?')) {
+                                try {
+                                  await fetch(`${API_URL}/admin/video-gallery/${video._id}`, {
+                                    method: 'DELETE',
+                                    headers: { Authorization: `Bearer ${token}` }
+                                  });
+                                  fetchGalleryVideos();
+                                } catch (error) {
+                                  console.error('Error deleting video:', error);
+                                }
+                              }
+                            }}
+                            className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                      {!video.isActive && (
+                        <span className="absolute top-1 right-1 text-xs bg-red-600 px-1 rounded">Hidden</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Empty State */}
+              {galleryType === 'photo' && galleryPhotos.filter(photo => galleryCategory === 'all' || photo.category === galleryCategory).length === 0 && (
                 <div className="text-center py-10 text-gray-400">
                   <p className="text-4xl mb-2">📷</p>
                   <p>No photos in this category</p>
+                </div>
+              )}
+
+              {galleryType === 'video' && galleryVideos.filter(video => galleryCategory === 'all' || video.category === galleryCategory).length === 0 && (
+                <div className="text-center py-10 text-gray-400">
+                  <p className="text-4xl mb-2">🎬</p>
+                  <p>No videos in this category</p>
                 </div>
               )}
             </div>

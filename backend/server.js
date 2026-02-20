@@ -17,6 +17,7 @@ import { startCleanupJob } from './utils/cleanup.js';
 import adminRoutes from './routes/adminRoutes.js';
 import imageRoutes from './routes/imageRoutes.js';
 import videoRoutes from './routes/videoRoutes.js';
+import videoGalleryRoutes from './routes/videoGalleryRoutes.js';
 import contentRoutes from './routes/contentRoutes.js';
 import feedbackRoutes from './routes/feedbackRoutes.js';
 import galleryRoutes from './routes/galleryRoutes.js';
@@ -87,6 +88,10 @@ app.use('/api/admin/feedback', feedbackRoutes); // Admin: GET /admin, PUT /:id/r
 // Gallery Routes
 app.use('/api/gallery', galleryRoutes);       // Public: GET /, GET /categories
 app.use('/api/admin/gallery', galleryRoutes); // Admin: GET /admin, POST /, PUT /:id, DELETE /:id
+
+// Video Gallery Routes
+app.use('/api/video-gallery', videoGalleryRoutes);       // Public: GET /, GET /categories
+app.use('/api/admin/video-gallery', videoGalleryRoutes); // Admin: GET /admin, POST /, PUT /:id, DELETE /:id
 
 // Curriculum Routes
 app.use('/api/curriculum', curriculumRoutes);       // Public: GET /, GET /:level
