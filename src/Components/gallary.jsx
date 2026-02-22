@@ -100,9 +100,10 @@ function Gallery() {
     { id: 'all', name: 'All Photos', icon: '📷' },
     { id: 'events', name: 'School Events', icon: '🎉' },
     { id: 'sports', name: 'Sports Day', icon: '⚽' },
-    { id: 'cultural', name: 'Cultural Programs', icon: '🎭' },
+    { id: 'Republic', name: 'Republic Day', icon: '🎭' },
     { id: 'classroom', name: 'Classroom Activities', icon: '📚' },
     { id: 'campus', name: 'Campus', icon: '🏫' },
+    { id: 'other', name: 'Other Moments', icon: '✨' },
   ];
 
   const openLightbox = (image) => {
