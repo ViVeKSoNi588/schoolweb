@@ -1,21 +1,38 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
 import SocialSidebar from './Components/SocialSidebar'
 import Navbar from './Components/nav'
 import ImageCarousel from './Components/scroll'
-import AdminPanel from './Components/AdminPanel'
 import VideoPlayer from './Components/video'
-import './App.css'
 import Content from './Components/Content'
-import FeedbackForm from './Components/FeedbackForm'
-import BulletinBoard from './Components/BulletinBoard'
-import PrePrimary from './Components/PrePrimary'
-import Contact from './Components/Contact'
-import Admission from './Components/Admission'
-import Gallery from './Components/gallary'
-import VideoGallery from './Components/VideoGallery'
-import AboutUs from './Components/AboutUs'
-import Curriculum from './Components/Curriculum'
-import AnnualFixture from './Components/AnnualFixture'
+import './App.css'
+
+// Lazy-load below-fold home page sections
+const BulletinBoard = lazy(() => import('./Components/BulletinBoard'))
+const FeedbackForm = lazy(() => import('./Components/FeedbackForm'))
+
+// Lazy-load all route-level pages (not needed on initial home page load)
+const PrePrimary = lazy(() => import('./Components/PrePrimary'))
+const Contact = lazy(() => import('./Components/Contact'))
+const Admission = lazy(() => import('./Components/Admission'))
+const Gallery = lazy(() => import('./Components/gallary'))
+const VideoGallery = lazy(() => import('./Components/VideoGallery'))
+const AboutUs = lazy(() => import('./Components/AboutUs'))
+const Curriculum = lazy(() => import('./Components/Curriculum'))
+const AnnualFixture = lazy(() => import('./Components/AnnualFixture'))
+const AdminPanel = lazy(() => import('./Components/AdminPanel'))
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+  </div>
+)
+
+const SectionLoader = () => (
+  <div className="flex items-center justify-center py-12">
+    <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+  </div>
+)
 
 
 function App() {
@@ -41,7 +58,9 @@ function App() {
 
                 {/* Right Side - Bulletin Board */}
                 <div className="xl:w-72 flex-shrink-0">
-                  <BulletinBoard />
+                  <Suspense fallback={<SectionLoader />}>
+                    <BulletinBoard />
+                  </Suspense>
                 </div>
               </div>
             </div>
@@ -59,7 +78,9 @@ function App() {
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-stretch">
                   {/* Feedback Form */}
                   <div className="lg:col-span-3 order-2 lg:order-1">
-                    <FeedbackForm className="h-full" />
+                    <Suspense fallback={<SectionLoader />}>
+                      <FeedbackForm className="h-full" />
+                    </Suspense>
                   </div>
 
                   {/* Contact Info */}
@@ -112,15 +133,15 @@ function App() {
             </footer>
           </div>
         } />
-        <Route path="/preprimary" element={<PrePrimary />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/admissions" element={<Admission />} />
-        <Route path="/gallery" element={<Gallery />} />
-        <Route path="/video-gallery" element={<VideoGallery />} />
-        <Route path="/about" element={<AboutUs />} />
-        <Route path="/academics/curriculum" element={<Curriculum />} />
-        <Route path="/academics/annual-fixture" element={<AnnualFixture />} />
-        <Route path="/admin-secret-panel" element={<AdminPanel />} />
+        <Route path="/preprimary" element={<Suspense fallback={<PageLoader />}><PrePrimary /></Suspense>} />
+        <Route path="/contact" element={<Suspense fallback={<PageLoader />}><Contact /></Suspense>} />
+        <Route path="/admissions" element={<Suspense fallback={<PageLoader />}><Admission /></Suspense>} />
+        <Route path="/gallery" element={<Suspense fallback={<PageLoader />}><Gallery /></Suspense>} />
+        <Route path="/video-gallery" element={<Suspense fallback={<PageLoader />}><VideoGallery /></Suspense>} />
+        <Route path="/about" element={<Suspense fallback={<PageLoader />}><AboutUs /></Suspense>} />
+        <Route path="/academics/curriculum" element={<Suspense fallback={<PageLoader />}><Curriculum /></Suspense>} />
+        <Route path="/academics/annual-fixture" element={<Suspense fallback={<PageLoader />}><AnnualFixture /></Suspense>} />
+        <Route path="/admin-secret-panel" element={<Suspense fallback={<PageLoader />}><AdminPanel /></Suspense>} />
       </Routes>
     </Router>
   )

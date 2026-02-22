@@ -25,6 +25,10 @@ function AdminPanel() {
   const [uploadPreview, setUploadPreview] = useState('');
   const [imageUploading, setImageUploading] = useState(false);
   
+  // Multiple image upload with metadata
+  const [selectedImages, setSelectedImages] = useState([]); // Array of { data, name, size, alt, category, order, isActive }
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  
   // Video management
   const [newVideo, setNewVideo] = useState({ title: '', description: '', src: '', type: 'youtube', order: 0, isActive: true });
   const [editingVideo, setEditingVideo] = useState(null);
@@ -34,6 +38,10 @@ function AdminPanel() {
   const [videoUploading, setVideoUploading] = useState(false);
   const [videosLoading, setVideosLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  
+  // Multiple video upload with metadata
+  const [selectedVideos, setSelectedVideos] = useState([]); // Array of { data, name, size, title, description, order, isActive }
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   
   // Document management
   const [newDocument, setNewDocument] = useState('{}');
@@ -63,6 +71,12 @@ function AdminPanel() {
   const [galleryUploadPreview, setGalleryUploadPreview] = useState('');
   const [galleryPhotoUploading, setGalleryPhotoUploading] = useState(false);
   const [galleryPhotoUploadProgress, setGalleryPhotoUploadProgress] = useState(0);
+  
+  // Multiple gallery uploads with metadata
+  const [selectedGalleryPhotos, setSelectedGalleryPhotos] = useState([]); // Array of { data, name, size, title, description, category, year, order, isActive }
+  const [currentGalleryPhotoIndex, setCurrentGalleryPhotoIndex] = useState(0);
+  const [selectedGalleryVideos, setSelectedGalleryVideos] = useState([]); // Array of { data, name, size, title, description, category, year, type, order, isActive }
+  const [currentGalleryVideoIndex, setCurrentGalleryVideoIndex] = useState(0);
   const [galleryVideoUploadMode, setGalleryVideoUploadMode] = useState('url'); // 'url' or 'upload'
   const [galleryVideoUploadPreview, setGalleryVideoUploadPreview] = useState('');
   const [galleryVideoUploading, setGalleryVideoUploading] = useState(false);
@@ -102,6 +116,156 @@ function AdminPanel() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [eventMonthFilter, setEventMonthFilter] = useState('all');
 
+  // ============ REUSABLE COMPONENTS ============
+  
+  // Progress Bar Component
+  const ProgressBar = ({ progress, label }) => (
+    progress > 0 && (
+      <div className="mt-2">
+        <p className="text-gray-400 text-sm mb-1">{label || 'Uploading...'} {progress}%</p>
+        <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+          <div className="bg-blue-500 h-full transition-all duration-300" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+    )
+  );
+
+  // Thumbnail Navigation Component
+  const ThumbnailNav = ({ items, currentIndex, onClick, icon = '🖼️' }) => (
+    <div className="grid grid-cols-6 gap-2 mt-3">
+      {items.map((item, idx) => (
+        <button
+          key={idx}
+          onClick={() => onClick(idx)}
+          className={`aspect-square rounded p-2 flex flex-col items-center justify-center text-xs ${
+            idx === currentIndex
+              ? 'bg-blue-600 text-white ring-2 ring-blue-400'
+              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+          }`}
+        >
+          {item.data?.startsWith('data:image') ? (
+            <img src={item.data} alt="" className="w-full h-full object-cover rounded" />
+          ) : (
+            <>
+              <div className="text-lg">{icon}</div>
+              <div className="truncate w-full text-center">{idx + 1}</div>
+            </>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+
+  // Navigation Buttons Component
+  const NavButtons = ({ currentIndex, total, onPrev, onNext }) => (
+    <div className="flex gap-2">
+      <button
+        onClick={onPrev}
+        disabled={currentIndex === 0}
+        className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        ← Previous
+      </button>
+      <button
+        onClick={onNext}
+        disabled={currentIndex === total - 1}
+        className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        Next →
+      </button>
+    </div>
+  );
+
+  // Form Select Component
+  const FormSelect = ({ value, onChange, options, className = "" }) => (
+    <select
+      value={value}
+      onChange={onChange}
+      className={`bg-gray-600 text-white p-2 rounded ${className}`}
+    >
+      {options.map(opt => (
+        <option key={opt.value} value={opt.value}>{opt.label}</option>
+      ))}
+    </select>
+  );
+
+  // Category Options
+  const CATEGORY_OPTIONS = [
+    { value: 'events', label: '🎉 School Events' },
+    { value: 'sports', label: '⚽ Sports Day' },
+    { value: 'cultural', label: '🎭 Cultural Programs' },
+    { value: 'classroom', label: '📚 Classroom Activities' },
+    { value: 'campus', label: '🏫 Campus Tour' },
+    { value: 'other', label: '🎬 Other' }
+  ];
+
+  const YEAR_OPTIONS = [
+    { value: '2025-26', label: '📅 2025-26' },
+    { value: '2024-25', label: '📅 2024-25' },
+    { value: '2023-24', label: '📅 2023-24' },
+    { value: '2022-23', label: '📅 2022-23' }
+  ];
+
+  // ============ HELPER FUNCTIONS ============
+  
+  // Generic file upload handler
+  const handleMultiFileSelect = async (e, fileType, maxCount, maxSize, existingItems, setItems, setCurrentIndex) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+    if (files.length > maxCount) {
+      alert(`Maximum ${maxCount} files allowed at once`);
+      return;
+    }
+
+    const validFiles = [];
+    const invalidFiles = [];
+
+    files.forEach((file) => {
+      const isValid = fileType === 'image' ? file.type.startsWith('image/') : file.type.startsWith('video/');
+      if (!isValid) {
+        invalidFiles.push(`${file.name}: Invalid file type`);
+        return;
+      }
+      if (file.size > maxSize) {
+        invalidFiles.push(`${file.name}: Exceeds ${(maxSize / (1024 * 1024)).toFixed(0)}MB`);
+        return;
+      }
+      validFiles.push(file);
+    });
+
+    if (invalidFiles.length > 0) {
+      alert('Some files were skipped:\n' + invalidFiles.join('\n'));
+    }
+    if (validFiles.length === 0) return;
+
+    // Read all valid files
+    const promises = validFiles.map((file, index) => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve({
+            data: reader.result,
+            name: file.name,
+            size: file.size,
+            title: file.name.split('.')[0] || `File ${index + 1}`,
+            alt: file.name.split('.')[0] || `File ${index + 1}`,
+            category: 'events',
+            year: '2025-26',
+            order: index,
+            isActive: true,
+            description: ''
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    const filesData = await Promise.all(promises);
+    setItems(filesData);
+    setCurrentIndex(0);
+    return filesData;
+  };
+
   // Helper functions for fetching data
   const fetchCollections = async (authToken) => {
     try {
@@ -129,14 +293,11 @@ function AdminPanel() {
   const fetchVideos = async () => {
     try {
       setVideosLoading(true);
-      console.log('Fetching videos...');
       const res = await fetch(`${API_URL}/admin/videos`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      console.log('Fetch videos response status:', res.status);
       if (res.ok) {
         const data = await res.json();
-        console.log('Videos fetched:', data.length, 'videos');
         setDocuments(data);
         setSelectedCollection('videos');
       } else {
@@ -405,43 +566,51 @@ function AdminPanel() {
     setIsLoggedIn(false);
   };
 
-  // File upload handler
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        alert('Image size must be less than 10MB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+  // File upload handler - supports single and multiple
+  const handleFileSelect = async (e) => {
+    const filesData = await handleMultiFileSelect(e, 'image', 20, 10 * 1024 * 1024, newImage, setSelectedImages, setCurrentImageIndex);
+    if (!filesData || filesData.length === 0) return;
+    if (filesData.length === 1) {
+      setUploadPreview(filesData[0].data);
+      setNewImage(prev => ({ ...prev, alt: filesData[0].alt }));
+    } else {
+      setUploadPreview('');
     }
   };
 
-  // Video file upload handler
-  const handleVideoFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (!file.type.startsWith('video/')) {
-        alert('Please select a video file');
-        return;
-      }
-      if (file.size > 50 * 1024 * 1024) { // 50MB limit
-        alert('Video size must be less than 50MB. For larger videos, please upload to YouTube and paste the link.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setVideoUploadPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+  // Video file upload handler - supports single and multiple
+  const handleVideoFileSelect = async (e) => {
+    const filesData = await handleMultiFileSelect(e, 'video', 10, 50 * 1024 * 1024, newVideo, setSelectedVideos, setCurrentVideoIndex);
+    if (!filesData || filesData.length === 0) return;
+    if (filesData.length === 1) {
+      setVideoUploadPreview(filesData[0].data);
+      setNewVideo(prev => ({ ...prev, title: filesData[0].title }));
+    } else {
+      setVideoUploadPreview('');
+    }
+  };
+
+  // Gallery photos handler - supports single and multiple
+  const handleGalleryPhotoFileSelect = async (e) => {
+    const filesData = await handleMultiFileSelect(e, 'image', 20, 10 * 1024 * 1024, newGalleryPhoto, setSelectedGalleryPhotos, setCurrentGalleryPhotoIndex);
+    if (!filesData || filesData.length === 0) return;
+    if (filesData.length === 1) {
+      setGalleryUploadPreview(filesData[0].data);
+      setNewGalleryPhoto(prev => ({ ...prev, title: filesData[0].title, src: filesData[0].data }));
+    } else {
+      setGalleryUploadPreview('');
+    }
+  };
+
+  // Gallery videos handler - supports single and multiple
+  const handleGalleryVideoFileSelect = async (e) => {
+    const filesData = await handleMultiFileSelect(e, 'video', 10, 50 * 1024 * 1024, newGalleryVideo, setSelectedGalleryVideos, setCurrentGalleryVideoIndex);
+    if (!filesData || filesData.length === 0) return;
+    if (filesData.length === 1) {
+      setGalleryVideoUploadPreview(filesData[0].data);
+      setNewGalleryVideo(prev => ({ ...prev, title: filesData[0].title, src: filesData[0].data }));
+    } else {
+      setGalleryVideoUploadPreview('');
     }
   };
 
@@ -469,6 +638,43 @@ function AdminPanel() {
   const handleAddImage = async (e) => {
     e.preventDefault();
     try {
+      // Check if uploading multiple images
+      if (selectedImages.length > 0) {
+        setImageUploading(true);
+        
+        // Prepare images array with their metadata
+        const images = selectedImages.map(img => ({
+          imageData: img.data,
+          alt: img.alt,
+          order: img.order,
+          isActive: img.isActive,
+          category: img.category
+        }));
+
+        const res = await fetch(`${API_URL}/admin/images/batch-upload`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ images })
+        });
+
+        const data = await res.json();
+        setImageUploading(false);
+        
+        if (res.ok) {
+          alert(`✅ Upload complete!\nSuccessful: ${data.successful.length}\nFailed: ${data.failed.length}`);
+          setSelectedImages([]);
+          setCurrentImageIndex(0);
+          fetchDocuments('images');
+        } else {
+          alert('Upload failed: ' + (data.message || 'Unknown error'));
+        }
+        return;
+      }
+
+      // Single image upload
       if (uploadMode === 'upload' && uploadPreview) {
         // Upload image file
         setImageUploading(true);
@@ -541,7 +747,51 @@ function AdminPanel() {
   const handleAddVideo = async (e) => {
     e.preventDefault();
     
-    // Validate title is provided
+    // Check if uploading multiple videos
+    if (selectedVideos.length > 0) {
+      setVideoUploading(true);
+      setUploadProgress(0);
+      
+      try {
+        // Prepare videos array with their metadata
+        const videos = selectedVideos.map(video => ({
+          videoData: video.data,
+          title: video.title,
+          description: video.description,
+          order: video.order,
+          isActive: video.isActive
+        }));
+
+        const res = await fetch(`${API_URL}/admin/videos/batch-upload`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ videos })
+        });
+
+        const data = await res.json();
+        setVideoUploading(false);
+        
+        if (res.ok) {
+          alert(`✅ Upload complete!\nSuccessful: ${data.successful.length}\nFailed: ${data.failed.length}`);
+          setSelectedVideos([]);
+          setCurrentVideoIndex(0);
+          fetchVideos();
+        } else {
+          alert('Upload failed: ' + (data.message || 'Unknown error'));
+        }
+        return;
+      } catch (error) {
+        console.error('Batch upload error:', error);
+        alert('Error uploading videos');
+        setVideoUploading(false);
+        return;
+      }
+    }
+
+    // Single video upload - validate title is provided
     if (!newVideo.title || !newVideo.title.trim()) {
       alert('Please provide a video title');
       return;
@@ -1165,7 +1415,7 @@ function AdminPanel() {
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
                     >
-                      📤 Upload File
+                      📤 Upload File(s)
                     </button>
                   </div>
 
@@ -1181,59 +1431,205 @@ function AdminPanel() {
                         required
                       />
                     ) : (
-                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-500 rounded-lg cursor-pointer hover:border-blue-500 transition-colors bg-gray-600/50">
-                        {uploadPreview ? (
-                          <img src={uploadPreview} alt="Preview" className="h-full w-full object-contain rounded-lg" />
-                        ) : (
-                          <div className="text-center">
-                            <span className="text-3xl">📁</span>
-                            <p className="text-gray-400 mt-1 text-sm">Click to select image (max 10MB)</p>
+                      <>
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-500 rounded-lg cursor-pointer hover:border-blue-500 transition-colors bg-gray-600/50">
+                          {selectedImages.length > 0 ? (
+                            <div className="text-center">
+                              <span className="text-3xl">✅</span>
+                              <p className="text-blue-400 mt-1 font-semibold">{selectedImages.length} image(s) selected</p>
+                              <p className="text-xs text-gray-400 mt-1">Total: {(selectedImages.reduce((acc, img) => acc + img.size, 0) / 1024 / 1024).toFixed(2)}MB</p>
+                            </div>
+                          ) : uploadPreview ? (
+                            <img src={uploadPreview} alt="Preview" className="h-full w-full object-contain rounded-lg" />
+                          ) : (
+                            <div className="text-center">
+                              <span className="text-3xl">📁</span>
+                              <p className="text-gray-400 mt-1 text-sm">Click to select image(s)</p>
+                              <p className="text-xs text-gray-500">Single or multiple files (max 10MB each)</p>
+                            </div>
+                          )}
+                          <input type="file" accept="image/*" multiple onChange={handleFileSelect} className="hidden" />
+                        </label>
+
+                        {/* Multiple Files - Show Metadata Editor */}
+                        {selectedImages.length > 1 && (
+                          <div className="bg-blue-600/10 border-2 border-blue-500 rounded-lg p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-bold text-blue-400">
+                                📝 Editing Image {currentImageIndex + 1} of {selectedImages.length}
+                              </h4>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedImages([])}
+                                className="text-xs bg-red-600 hover:bg-red-700 px-3 py-1 rounded"
+                              >
+                                Clear All
+                              </button>
+                            </div>
+
+                            {/* Current Image Preview */}
+                            <div className="flex items-center gap-3 bg-gray-800/50 p-3 rounded">
+                              <img 
+                                src={selectedImages[currentImageIndex]?.data} 
+                                alt="Preview" 
+                                className="w-24 h-24 object-cover rounded border-2 border-blue-500"
+                              />
+                              <div className="flex-1">
+                                <p className="font-semibold text-sm">{selectedImages[currentImageIndex]?.name}</p>
+                                <p className="text-xs text-gray-400">
+                                  Size: {(selectedImages[currentImageIndex]?.size / 1024).toFixed(0)}KB
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Metadata Inputs for Current Image */}
+                            <div className="grid grid-cols-2 gap-3">
+                              <input
+                                type="text"
+                                placeholder="Description (Alt text)"
+                                value={selectedImages[currentImageIndex]?.alt || ''}
+                                onChange={(e) => {
+                                  const updated = [...selectedImages];
+                                  updated[currentImageIndex].alt = e.target.value;
+                                  setSelectedImages(updated);
+                                }}
+                                className="col-span-2 p-2 bg-gray-600 rounded border border-gray-500"
+                              />
+                              <select
+                                value={selectedImages[currentImageIndex]?.category || 'home'}
+                                onChange={(e) => {
+                                  const updated = [...selectedImages];
+                                  updated[currentImageIndex].category = e.target.value;
+                                  setSelectedImages(updated);
+                                }}
+                                className="p-2 bg-gray-600 rounded border border-gray-500"
+                              >
+                                <option value="home">Home</option>
+                                <option value="preprimary">Pre-Primary</option>
+                                <option value="gallery">Gallery</option>
+                                <option value="about">About</option>
+                                <option value="events">Events</option>
+                              </select>
+                              <input
+                                type="number"
+                                placeholder="Order"
+                                value={selectedImages[currentImageIndex]?.order || 0}
+                                onChange={(e) => {
+                                  const updated = [...selectedImages];
+                                  updated[currentImageIndex].order = parseInt(e.target.value) || 0;
+                                  setSelectedImages(updated);
+                                }}
+                                className="p-2 bg-gray-600 rounded border border-gray-500"
+                              />
+                            </div>
+
+                            {/* Navigation Buttons */}
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setCurrentImageIndex(Math.max(0, currentImageIndex - 1))}
+                                disabled={currentImageIndex === 0}
+                                className="flex-1 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 py-2 rounded font-medium"
+                              >
+                                ← Previous
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCurrentImageIndex(Math.min(selectedImages.length - 1, currentImageIndex + 1))}
+                                disabled={currentImageIndex === selectedImages.length - 1}
+                                className="flex-1 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 py-2 rounded font-medium"
+                              >
+                                Next →
+                              </button>
+                            </div>
+
+                            {/* Thumbnail Navigation */}
+                            <div className="grid grid-cols-6 gap-2 max-h-32 overflow-y-auto p-2 bg-gray-800/50 rounded">
+                              {selectedImages.map((img, index) => (
+                                <div 
+                                  key={index} 
+                                  onClick={() => setCurrentImageIndex(index)}
+                                  className={`relative cursor-pointer rounded overflow-hidden border-2 ${
+                                    index === currentImageIndex ? 'border-blue-500' : 'border-gray-600'
+                                  }`}
+                                >
+                                  <img 
+                                    src={img.data} 
+                                    alt={img.name} 
+                                    className="w-full h-16 object-cover"
+                                  />
+                                  <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs px-1 rounded-bl">
+                                    {index + 1}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
-                        <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
-                      </label>
+                      </>
                     )}
-                    <div className="grid grid-cols-4 gap-3">
-                      <input
-                        type="text"
-                        placeholder="Description"
-                        value={newImage.alt}
-                        onChange={(e) => setNewImage({ ...newImage, alt: e.target.value })}
-                        className="p-2 bg-gray-600 rounded border border-gray-500"
-                        required
-                      />
-                      <select
-                        value={newImage.category}
-                        onChange={(e) => setNewImage({ ...newImage, category: e.target.value })}
-                        className="p-2 bg-gray-600 rounded border border-gray-500"
-                      >
-                        <option value="home">Home</option>
-                        <option value="preprimary">Pre-Primary</option>
-                        <option value="gallery">Gallery</option>
-                        <option value="about">About</option>
-                        <option value="events">Events</option>
-                      </select>
-                      <input
-                        type="number"
-                        placeholder="Order"
-                        value={newImage.order}
-                        onChange={(e) => setNewImage({ ...newImage, order: parseInt(e.target.value) || 0 })}
-                        className="p-2 bg-gray-600 rounded border border-gray-500"
-                      />
+
+                    {/* Form Fields - Show for URL mode or single file */}
+                    {(uploadMode === 'url' || (uploadMode === 'upload' && selectedImages.length <= 1)) && (
+                      <div className="grid grid-cols-4 gap-3">
+                        <input
+                          type="text"
+                          placeholder="Description"
+                          value={newImage.alt}
+                          onChange={(e) => setNewImage({ ...newImage, alt: e.target.value })}
+                          className="p-2 bg-gray-600 rounded border border-gray-500"
+                          required
+                        />
+                        <select
+                          value={newImage.category}
+                          onChange={(e) => setNewImage({ ...newImage, category: e.target.value })}
+                          className="p-2 bg-gray-600 rounded border border-gray-500"
+                        >
+                          <option value="home">Home</option>
+                          <option value="preprimary">Pre-Primary</option>
+                          <option value="gallery">Gallery</option>
+                          <option value="about">About</option>
+                          <option value="events">Events</option>
+                        </select>
+                        <input
+                          type="number"
+                          placeholder="Order"
+                          value={newImage.order}
+                          onChange={(e) => setNewImage({ ...newImage, order: parseInt(e.target.value) || 0 })}
+                          className="p-2 bg-gray-600 rounded border border-gray-500"
+                        />
+                        <button 
+                          type="submit"
+                          disabled={(uploadMode === 'upload' && !uploadPreview && selectedImages.length === 0) || imageUploading}
+                          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded font-medium flex items-center justify-center gap-2"
+                        >
+                          {imageUploading ? (
+                            <>
+                              <span className="animate-spin">⏳</span> Uploading...
+                            </>
+                          ) : (
+                            '➕ Add'
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Upload All Button for Multiple Files */}
+                    {uploadMode === 'upload' && selectedImages.length > 1 && (
                       <button 
                         type="submit"
-                        disabled={(uploadMode === 'upload' && !uploadPreview) || imageUploading}
-                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded font-medium flex items-center justify-center gap-2"
+                        disabled={imageUploading}
+                        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 py-3 rounded-lg font-bold flex items-center justify-center gap-2"
                       >
                         {imageUploading ? (
                           <>
-                            <span className="animate-spin">⏳</span> Uploading...
+                            <span className="animate-spin">⏳</span> Uploading {selectedImages.length} images...
                           </>
                         ) : (
-                          '➕ Add'
+                          <>🚀 Upload All {selectedImages.length} Images</>
                         )}
                       </button>
-                    </div>
+                    )}
                     
                     {/* Progress Bar */}
                     {imageUploading && uploadMode === 'upload' && (
@@ -1244,7 +1640,9 @@ function AdminPanel() {
                             style={{ width: '100%' }}
                           />
                         </div>
-                        <p className="text-xs text-gray-400 mt-1 text-center">Uploading to Cloudinary...</p>
+                        <p className="text-xs text-gray-400 mt-1 text-center">
+                          {selectedImages.length > 1 ? 'Uploading batch to Cloudinary...' : 'Uploading to Cloudinary...'}
+                        </p>
                       </div>
                     )}
                   </form>
@@ -1893,119 +2291,259 @@ function AdminPanel() {
                   )}
                   
                   {videoUploadMode === 'upload' && (
-                    <div>
-                      <label className="block text-gray-300 mb-2 text-sm">Upload Video File</label>
-                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-500 rounded-lg cursor-pointer hover:border-green-500 transition-colors bg-gray-600/50">
-                        {videoUploadPreview ? (
-                          <div className="text-center">
-                            <span className="text-4xl">✅</span>
-                            <p className="text-green-400 mt-2 text-sm">Video selected</p>
+                    <>
+                      <div>
+                        <label className="block text-gray-300 mb-2 text-sm">Upload Video File(s)</label>
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-500 rounded-lg cursor-pointer hover:border-green-500 transition-colors bg-gray-600/50">
+                          {selectedVideos.length > 0 ? (
+                            <div className="text-center">
+                              <span className="text-3xl">✅</span>
+                              <p className="text-purple-400 mt-1 font-semibold">{selectedVideos.length} video(s) selected</p>
+                              <p className="text-xs text-gray-400 mt-1">Total: {(selectedVideos.reduce((acc, vid) => acc + vid.size, 0) / 1024 / 1024).toFixed(2)}MB</p>
+                            </div>
+                          ) : videoUploadPreview ? (
+                            <div className="text-center">
+                              <span className="text-4xl">✅</span>
+                              <p className="text-green-400 mt-2 text-sm">Video selected</p>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <span className="text-4xl">🎥</span>
+                              <p className="text-gray-400 mt-2 text-sm">Click to select video(s)</p>
+                              <p className="text-gray-500 text-xs">Single or multiple files (max 50MB each)</p>
+                            </div>
+                          )}
+                          <input 
+                            type="file" 
+                            accept="video/*" 
+                            multiple 
+                            onChange={handleVideoFileSelect} 
+                            className="hidden" 
+                          />
+                        </label>
+                        <p className="text-yellow-500 text-xs mt-2">💡 For larger videos, upload to YouTube and paste the link instead</p>
+                      </div>
+
+                      {/* Multiple Videos - Show Metadata Editor */}
+                      {selectedVideos.length > 1 && (
+                        <div className="bg-purple-600/10 border-2 border-purple-500 rounded-lg p-4 space-y-3 mt-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-purple-400">
+                              📝 Editing Video {currentVideoIndex + 1} of {selectedVideos.length}
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedVideos([])}
+                              className="text-xs bg-red-600 hover:bg-red-700 px-3 py-1 rounded"
+                            >
+                              Clear All
+                            </button>
                           </div>
-                        ) : (
-                          <div className="text-center">
-                            <span className="text-4xl">🎥</span>
-                            <p className="text-gray-400 mt-2 text-sm">Click to select video (max 50MB)</p>
-                            <p className="text-gray-500 text-xs">MP4, WebM, MOV supported</p>
+
+                          {/* Current Video Info */}
+                          <div className="flex items-center gap-3 bg-gray-800/50 p-3 rounded">
+                            <div className="w-24 h-16 bg-gray-900 rounded flex items-center justify-center">
+                              <span className="text-3xl">🎥</span>
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-semibold text-sm">{selectedVideos[currentVideoIndex]?.name}</p>
+                              <p className="text-xs text-gray-400">
+                                Size: {(selectedVideos[currentVideoIndex]?.size / 1024 / 1024).toFixed(2)}MB
+                              </p>
+                            </div>
                           </div>
-                        )}
-                        <input 
-                          type="file" 
-                          accept="video/*" 
-                          onChange={handleVideoFileSelect} 
-                          className="hidden" 
-                        />
-                      </label>
-                      <p className="text-yellow-500 text-xs mt-2">💡 For larger videos, upload to YouTube and paste the link instead</p>
-                    </div>
+
+                          {/* Metadata Inputs for Current Video */}
+                          <div className="space-y-3">
+                            <input
+                              type="text"
+                              placeholder="Video Title *"
+                              value={selectedVideos[currentVideoIndex]?.title || ''}
+                              onChange={(e) => {
+                                const updated = [...selectedVideos];
+                                updated[currentVideoIndex].title = e.target.value;
+                                setSelectedVideos(updated);
+                              }}
+                              className="w-full p-2 bg-gray-600 rounded border border-gray-500"
+                            />
+                            <textarea
+                              placeholder="Description (optional)"
+                              value={selectedVideos[currentVideoIndex]?.description || ''}
+                              onChange={(e) => {
+                                const updated = [...selectedVideos];
+                                updated[currentVideoIndex].description = e.target.value;
+                                setSelectedVideos(updated);
+                              }}
+                              className="w-full p-2 bg-gray-600 rounded border border-gray-500 h-16 resize-none"
+                            />
+                            <input
+                              type="number"
+                              placeholder="Display Order"
+                              value={selectedVideos[currentVideoIndex]?.order || 0}
+                              onChange={(e) => {
+                                const updated = [...selectedVideos];
+                                updated[currentVideoIndex].order = parseInt(e.target.value) || 0;
+                                setSelectedVideos(updated);
+                              }}
+                              className="w-full p-2 bg-gray-600 rounded border border-gray-500"
+                            />
+                          </div>
+
+                          {/* Navigation Buttons */}
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setCurrentVideoIndex(Math.max(0, currentVideoIndex - 1))}
+                              disabled={currentVideoIndex === 0}
+                              className="flex-1 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 py-2 rounded font-medium"
+                            >
+                              ← Previous
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCurrentVideoIndex(Math.min(selectedVideos.length - 1, currentVideoIndex + 1))}
+                              disabled={currentVideoIndex === selectedVideos.length - 1}
+                              className="flex-1 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 py-2 rounded font-medium"
+                            >
+                              Next →
+                            </button>
+                          </div>
+
+                          {/* Thumbnail Navigation */}
+                          <div className="grid grid-cols-5 gap-2 max-h-32 overflow-y-auto p-2 bg-gray-800/50 rounded">
+                            {selectedVideos.map((video, index) => (
+                              <div 
+                                key={index} 
+                                onClick={() => setCurrentVideoIndex(index)}
+                                className={`relative cursor-pointer rounded overflow-hidden border-2 ${
+                                  index === currentVideoIndex ? 'border-purple-500' : 'border-gray-600'
+                                } bg-gray-900 h-16 flex items-center justify-center`}
+                              >
+                                <span className="text-2xl">🎥</span>
+                                <div className="absolute top-0 right-0 bg-purple-600 text-white text-xs px-1 rounded-bl">
+                                  {index + 1}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
-                {/* Title */}
-                <div>
-                  <label className="block text-gray-300 mb-2 text-sm">Title *</label>
-                  <input
-                    type="text"
-                    placeholder="Video title"
-                    value={newVideo.title}
-                    onChange={(e) => setNewVideo({ ...newVideo, title: e.target.value })}
-                    className="w-full p-3 bg-gray-600 rounded-lg border border-gray-500 focus:border-blue-500 focus:outline-none"
-                    required
-                  />
-                </div>
-
-                {/* Order */}
-                <div>
-                  <label className="block text-gray-300 mb-2 text-sm">Display Order</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={newVideo.order}
-                    onChange={(e) => setNewVideo({ ...newVideo, order: parseInt(e.target.value) || 0 })}
-                    className="w-full p-3 bg-gray-600 rounded-lg border border-gray-500 focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                {/* Description */}
-                <div className="md:col-span-2">
-                  <label className="block text-gray-300 mb-2 text-sm">Description</label>
-                  <textarea
-                    placeholder="Video description (optional)"
-                    value={newVideo.description}
-                    onChange={(e) => setNewVideo({ ...newVideo, description: e.target.value })}
-                    className="w-full p-3 bg-gray-600 rounded-lg border border-gray-500 focus:border-blue-500 focus:outline-none h-20 resize-none"
-                  />
-                </div>
-
-                {/* Custom Thumbnail (for non-YouTube videos) */}
-                {videoUploadMode !== 'youtube' && (
-                  <div className="md:col-span-2">
-                    <label className="block text-gray-300 mb-2 text-sm">Custom Thumbnail (optional)</label>
-                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-500 rounded-lg cursor-pointer hover:border-blue-500 transition-colors bg-gray-600/50">
-                      {videoThumbnailPreview ? (
-                        <img src={videoThumbnailPreview} alt="Thumbnail" className="h-full w-auto object-contain rounded" />
-                      ) : (
-                        <div className="text-center">
-                          <span className="text-2xl">🖼️</span>
-                          <p className="text-gray-400 text-xs">Click to add thumbnail</p>
-                        </div>
-                      )}
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={handleVideoThumbnailSelect} 
-                        className="hidden" 
+                {/* Form Fields - Show for non-upload modes or single file */}
+                {(videoUploadMode !== 'upload' || (videoUploadMode === 'upload' && selectedVideos.length <= 1)) && (
+                  <>
+                    {/* Title */}
+                    <div>
+                      <label className="block text-gray-300 mb-2 text-sm">Title *</label>
+                      <input
+                        type="text"
+                        placeholder="Video title"
+                        value={newVideo.title}
+                        onChange={(e) => setNewVideo({ ...newVideo, title: e.target.value })}
+                        className="w-full p-3 bg-gray-600 rounded-lg border border-gray-500 focus:border-blue-500 focus:outline-none"
+                        required
                       />
-                    </label>
-                  </div>
-                )}
+                    </div>
 
-                {/* Active Toggle */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="videoActive"
-                    checked={newVideo.isActive}
-                    onChange={(e) => setNewVideo({ ...newVideo, isActive: e.target.checked })}
-                    className="w-4 h-4"
-                  />
-                  <label htmlFor="videoActive" className="text-gray-300 text-sm">Active (visible on site)</label>
-                </div>
+                    {/* Order */}
+                    <div>
+                      <label className="block text-gray-300 mb-2 text-sm">Display Order</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={newVideo.order}
+                        onChange={(e) => setNewVideo({ ...newVideo, order: parseInt(e.target.value) || 0 })}
+                        className="w-full p-3 bg-gray-600 rounded-lg border border-gray-500 focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Description */}
+                    <div className="md:col-span-2">
+                      <label className="block text-gray-300 mb-2 text-sm">Description</label>
+                      <textarea
+                        placeholder="Video description (optional)"
+                        value={newVideo.description}
+                        onChange={(e) => setNewVideo({ ...newVideo, description: e.target.value })}
+                        className="w-full p-3 bg-gray-600 rounded-lg border border-gray-500 focus:border-blue-500 focus:outline-none h-20 resize-none"
+                      />
+                    </div>
+
+                    {/* Custom Thumbnail (for non-YouTube videos) */}
+                    {videoUploadMode !== 'youtube' && videoUploadMode !== 'upload' && (
+                      <div className="md:col-span-2">
+                        <label className="block text-gray-300 mb-2 text-sm">Custom Thumbnail (optional)</label>
+                        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-500 rounded-lg cursor-pointer hover:border-blue-500 transition-colors bg-gray-600/50">
+                          {videoThumbnailPreview ? (
+                            <img src={videoThumbnailPreview} alt="Thumbnail" className="h-full w-auto object-contain rounded" />
+                          ) : (
+                            <div className="text-center">
+                              <span className="text-2xl">🖼️</span>
+                              <p className="text-gray-400 text-xs">Click to add thumbnail</p>
+                            </div>
+                          )}
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={handleVideoThumbnailSelect} 
+                            className="hidden" 
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Active Toggle */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="videoActive"
+                        checked={newVideo.isActive}
+                        onChange={(e) => setNewVideo({ ...newVideo, isActive: e.target.checked })}
+                        className="w-4 h-4"
+                      />
+                      <label htmlFor="videoActive" className="text-gray-300 text-sm">Active (visible on site)</label>
+                    </div>
+                  </>
+                )}
               </div>
 
-              <button 
-                type="submit"
-                disabled={(videoUploadMode === 'upload' && !videoUploadPreview) || videoUploading}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                {videoUploading ? (
-                  <>
-                    <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
-                    Uploading... {uploadProgress > 0 && `${uploadProgress}%`}
-                  </>
-                ) : (
-                  <>➕ Add Video</>
-                )}
-              </button>
+              {/* Single Video Submit Button */}
+              {(videoUploadMode !== 'upload' || (videoUploadMode === 'upload' && selectedVideos.length <= 1)) && (
+                <button 
+                  type="submit"
+                  disabled={(videoUploadMode === 'upload' && !videoUploadPreview && selectedVideos.length === 0) || videoUploading}
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  {videoUploading ? (
+                    <>
+                      <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                      Uploading... {uploadProgress > 0 && `${uploadProgress}%`}
+                    </>
+                  ) : (
+                    <>➕ Add Video</>
+                  )}
+                </button>
+              )}
+
+              {/* Multiple Videos Upload Button */}
+              {videoUploadMode === 'upload' && selectedVideos.length > 1 && (
+                <button 
+                  type="submit"
+                  disabled={videoUploading}
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 py-3 rounded-lg font-bold flex items-center justify-center gap-2"
+                >
+                  {videoUploading ? (
+                    <>
+                      <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                      Uploading {selectedVideos.length} videos...
+                    </>
+                  ) : (
+                    <>🚀 Upload All {selectedVideos.length} Videos</>
+                  )}
+                </button>
+              )}
               
               {/* Upload Progress Bar */}
               {videoUploading && uploadProgress > 0 && (
@@ -2014,6 +2552,9 @@ function AdminPanel() {
                     className="bg-green-500 h-full transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   ></div>
+                  <p className="text-xs text-gray-400 mt-1 text-center">
+                    {selectedVideos.length > 1 ? 'Uploading batch to Cloudinary...' : 'Uploading to Cloudinary...'}
+                  </p>
                 </div>
               )}
             </form>
@@ -2246,25 +2787,21 @@ function AdminPanel() {
                   ) : (
                     <div className="mb-3">
                       <label className="block w-full bg-gray-700 text-white p-3 rounded-lg cursor-pointer hover:bg-gray-600 transition-colors text-center">
-                        📷 Choose Image File
+                        📷 Choose Image File(s)
                         <input
                           type="file"
                           accept="image/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => {
-                                setGalleryUploadPreview(reader.result);
-                                setNewGalleryPhoto({ ...newGalleryPhoto, src: reader.result });
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
+                          multiple
+                          onChange={handleGalleryPhotoFileSelect}
                           className="hidden"
                         />
                       </label>
-                      {galleryUploadPreview && (
+                      {selectedGalleryPhotos.length > 1 ? (
+                        <div className="mt-3 text-center">
+                          <span className="text-3xl">✅</span>
+                          <p className="text-green-400 mt-1 font-semibold">{selectedGalleryPhotos.length} photos selected</p>
+                        </div>
+                      ) : galleryUploadPreview && (
                         <img 
                           src={galleryUploadPreview} 
                           alt="Preview" 
@@ -2274,66 +2811,217 @@ function AdminPanel() {
                     </div>
                   )}
 
-                  <input
-                    type="text"
-                    placeholder="Photo Title *"
-                    value={newGalleryPhoto.title}
-                    onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, title: e.target.value })}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
-                  />
+                  {/* Multiple Photos - Show Metadata Editor */}
+                  {selectedGalleryPhotos.length > 1 && (
+                    <div className="bg-green-600/10 border-2 border-green-500 rounded-lg p-4 space-y-3 mb-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-green-400">
+                          📝 Editing Photo {currentGalleryPhotoIndex + 1} of {selectedGalleryPhotos.length}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedGalleryPhotos([]);
+                            setCurrentGalleryPhotoIndex(0);
+                          }}
+                          className="text-xs bg-red-600 hover:bg-red-700 px-3 py-1 rounded"
+                        >
+                          Clear All
+                        </button>
+                      </div>
 
-                  <select
-                    value={newGalleryPhoto.category}
-                    onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, category: e.target.value })}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
-                  >
-                    <option value="events">🎉 School Events</option>
-                    <option value="sports">⚽ Sports Day</option>
-                    <option value="cultural">🎭 Cultural Programs</option>
-                    <option value="classroom">📚 Classroom Activities</option>
-                    <option value="campus">🏫 Campus</option>
-                    <option value="other">📷 Other</option>
-                  </select>
+                      {/* Current Photo Preview */}
+                      <div className="flex items-center gap-3 bg-gray-800/50 p-3 rounded">
+                        <img 
+                          src={selectedGalleryPhotos[currentGalleryPhotoIndex]?.data} 
+                          alt="Preview" 
+                          className="w-24 h-24 object-cover rounded border-2 border-green-500"
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold text-sm">{selectedGalleryPhotos[currentGalleryPhotoIndex]?.name}</p>
+                          <p className="text-xs text-gray-400">
+                            Size: {(selectedGalleryPhotos[currentGalleryPhotoIndex]?.size / 1024).toFixed(0)}KB
+                          </p>
+                        </div>
+                      </div>
 
-                  <textarea
-                    placeholder="Description (optional)"
-                    value={newGalleryPhoto.description}
-                    onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, description: e.target.value })}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-20 resize-none"
-                  />
+                      {/* Metadata Inputs for Current Photo */}
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          placeholder="Photo Title *"
+                          value={selectedGalleryPhotos[currentGalleryPhotoIndex]?.title || ''}
+                          onChange={(e) => {
+                            const updated = [...selectedGalleryPhotos];
+                            updated[currentGalleryPhotoIndex].title = e.target.value;
+                            setSelectedGalleryPhotos(updated);
+                          }}
+                          className="w-full p-2 bg-gray-600 rounded border border-gray-500"
+                        />
+                        <select
+                          value={selectedGalleryPhotos[currentGalleryPhotoIndex]?.category || 'events'}
+                          onChange={(e) => {
+                            const updated = [...selectedGalleryPhotos];
+                            updated[currentGalleryPhotoIndex].category = e.target.value;
+                            setSelectedGalleryPhotos(updated);
+                          }}
+                          className="w-full p-2 bg-gray-600 rounded border border-gray-500"
+                        >
+                          <option value="events">🎉 School Events</option>
+                          <option value="sports">⚽ Sports Day</option>
+                          <option value="cultural">🎭 Cultural Programs</option>
+                          <option value="classroom">📚 Classroom Activities</option>
+                          <option value="campus">🏫 Campus</option>
+                          <option value="other">📷 Other</option>
+                        </select>
+                        <textarea
+                          placeholder="Description (optional)"
+                          value={selectedGalleryPhotos[currentGalleryPhotoIndex]?.description || ''}
+                          onChange={(e) => {
+                            const updated = [...selectedGalleryPhotos];
+                            updated[currentGalleryPhotoIndex].description = e.target.value;
+                            setSelectedGalleryPhotos(updated);
+                          }}
+                          className="w-full p-2 bg-gray-600 rounded border border-gray-500 h-16 resize-none"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="number"
+                            placeholder="Order"
+                            value={selectedGalleryPhotos[currentGalleryPhotoIndex]?.order || 0}
+                            onChange={(e) => {
+                              const updated = [...selectedGalleryPhotos];
+                              updated[currentGalleryPhotoIndex].order = parseInt(e.target.value) || 0;
+                              setSelectedGalleryPhotos(updated);
+                            }}
+                            className="p-2 bg-gray-600 rounded border border-gray-500"
+                          />
+                          <select
+                            value={selectedGalleryPhotos[currentGalleryPhotoIndex]?.year || '2025-26'}
+                            onChange={(e) => {
+                              const updated = [...selectedGalleryPhotos];
+                              updated[currentGalleryPhotoIndex].year = e.target.value;
+                              setSelectedGalleryPhotos(updated);
+                            }}
+                            className="p-2 bg-gray-600 rounded border border-gray-500"
+                          >
+                            <option value="2025-26">📅 2025-26</option>
+                            <option value="2024-25">📅 2024-25</option>
+                            <option value="2023-24">📅 2023-24</option>
+                            <option value="2022-23">📅 2022-23</option>
+                          </select>
+                        </div>
+                      </div>
 
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <input
-                      type="number"
-                      placeholder="Order"
-                      value={newGalleryPhoto.order}
-                      onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, order: parseInt(e.target.value) || 0 })}
-                      className="bg-gray-700 text-white p-3 rounded-lg"
-                    />
-                    <label className="flex items-center gap-2 bg-gray-700 p-3 rounded-lg cursor-pointer">
+                      {/* Navigation Buttons */}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCurrentGalleryPhotoIndex(Math.max(0, currentGalleryPhotoIndex - 1))}
+                          disabled={currentGalleryPhotoIndex === 0}
+                          className="flex-1 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 py-2 rounded font-medium"
+                        >
+                          ← Previous
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentGalleryPhotoIndex(Math.min(selectedGalleryPhotos.length - 1, currentGalleryPhotoIndex + 1))}
+                          disabled={currentGalleryPhotoIndex === selectedGalleryPhotos.length - 1}
+                          className="flex-1 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 py-2 rounded font-medium"
+                        >
+                          Next →
+                        </button>
+                      </div>
+
+                      {/* Thumbnail Navigation */}
+                      <div className="grid grid-cols-6 gap-2 max-h-32 overflow-y-auto p-2 bg-gray-800/50 rounded">
+                        {selectedGalleryPhotos.map((img, index) => (
+                          <div 
+                            key={index} 
+                            onClick={() => setCurrentGalleryPhotoIndex(index)}
+                            className={`relative cursor-pointer rounded overflow-hidden border-2 ${
+                              index === currentGalleryPhotoIndex ? 'border-green-500' : 'border-gray-600'
+                            }`}
+                          >
+                            <img 
+                              src={img.data} 
+                              alt={img.name} 
+                              className="w-full h-16 object-cover"
+                            />
+                            <div className="absolute top-0 right-0 bg-green-600 text-white text-xs px-1 rounded-bl">
+                              {index + 1}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Form Fields - Show for single file or no files */}
+                  {selectedGalleryPhotos.length <= 1 && (
+                    <>
                       <input
-                        type="checkbox"
-                        checked={newGalleryPhoto.isActive}
-                        onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, isActive: e.target.checked })}
-                        className="w-4 h-4"
+                        type="text"
+                        placeholder="Photo Title *"
+                        value={newGalleryPhoto.title}
+                        onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, title: e.target.value })}
+                        className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
                       />
-                      <span className="text-white text-sm">Active</span>
-                    </label>
-                  </div>
 
-                  <select
-                    value={newGalleryPhoto.year}
-                    onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, year: e.target.value })}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-4"
-                  >
-                    <option value="2025-26">📅 2025-26</option>
-                    <option value="2024-25">📅 2024-25</option>
-                    <option value="2023-24">📅 2023-24</option>
-                    <option value="2022-23">📅 2022-23</option>
-                  </select>
+                      <select
+                        value={newGalleryPhoto.category}
+                        onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, category: e.target.value })}
+                        className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+                      >
+                        <option value="events">🎉 School Events</option>
+                        <option value="sports">⚽ Sports Day</option>
+                        <option value="cultural">🎭 Cultural Programs</option>
+                        <option value="classroom">📚 Classroom Activities</option>
+                        <option value="campus">🏫 Campus</option>
+                        <option value="other">📷 Other</option>
+                      </select>
+
+                      <textarea
+                        placeholder="Description (optional)"
+                        value={newGalleryPhoto.description}
+                        onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, description: e.target.value })}
+                        className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-20 resize-none"
+                      />
+
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <input
+                          type="number"
+                          placeholder="Order"
+                          value={newGalleryPhoto.order}
+                          onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, order: parseInt(e.target.value) || 0 })}
+                          className="bg-gray-700 text-white p-3 rounded-lg"
+                        />
+                        <label className="flex items-center gap-2 bg-gray-700 p-3 rounded-lg cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newGalleryPhoto.isActive}
+                            onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, isActive: e.target.checked })}
+                            className="w-4 h-4"
+                          />
+                          <span className="text-white text-sm">Active</span>
+                        </label>
+                      </div>
+
+                      <select
+                        value={newGalleryPhoto.year}
+                        onChange={(e) => setNewGalleryPhoto({ ...newGalleryPhoto, year: e.target.value })}
+                        className="w-full bg-gray-700 text-white p-3 rounded-lg mb-4"
+                      >
+                        <option value="2025-26">📅 2025-26</option>
+                        <option value="2024-25">📅 2024-25</option>
+                        <option value="2023-24">📅 2023-24</option>
+                        <option value="2022-23">📅 2022-23</option>
+                      </select>
+                    </>
+                  )}
 
                   <div className="flex gap-3">
-                    {editingGalleryPhoto ? (
+                    {editingGalleryPhoto && selectedGalleryPhotos.length <= 1 ? (
                       <>
                         <button
                           onClick={async () => {
@@ -2371,7 +3059,7 @@ function AdminPanel() {
                           ❌ Cancel
                         </button>
                       </>
-                    ) : (
+                    ) : selectedGalleryPhotos.length <= 1 ? (
                       <>
                         <button
                           onClick={async () => {
@@ -2449,6 +3137,71 @@ function AdminPanel() {
                           </div>
                         )}
                       </>
+                    ) : (
+                      <>
+                        {/* Upload All Button for Multiple Photos */}
+                        <button
+                          onClick={async () => {
+                            setGalleryPhotoUploading(true);
+                            setGalleryPhotoUploadProgress(0);
+                            
+                            try {
+                              // Prepare photos array with their metadata
+                              const photos = selectedGalleryPhotos.map(photo => ({
+                                imageData: photo.data,
+                                title: photo.title,
+                                description: photo.description,
+                                category: photo.category,
+                                year: photo.year,
+                                order: photo.order,
+                                isActive: photo.isActive
+                              }));
+
+                              const res = await fetch(`${API_URL}/admin/gallery/batch-upload`, {
+                                method: 'POST',
+                                headers: { 
+                                  'Content-Type': 'application/json', 
+                                  Authorization: `Bearer ${token}` 
+                                },
+                                body: JSON.stringify({ photos })
+                              });
+
+                              const data = await res.json();
+                              setGalleryPhotoUploading(false);
+                              
+                              if (res.ok) {
+                                alert(`✅ Upload complete!\nSuccessful: ${data.successful.length}\nFailed: ${data.failed.length}`);
+                                setSelectedGalleryPhotos([]);
+                                setCurrentGalleryPhotoIndex(0);
+                                fetchGalleryPhotos();
+                              } else {
+                                alert('Upload failed: ' + (data.message || 'Unknown error'));
+                              }
+                            } catch (error) {
+                              console.error('Error:', error);
+                              alert('Upload failed. Please try again.');
+                            } finally {
+                              setGalleryPhotoUploading(false);
+                              setGalleryPhotoUploadProgress(0);
+                            }
+                          }}
+                          disabled={galleryPhotoUploading}
+                          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 py-3 rounded-lg font-bold"
+                        >
+                          {galleryPhotoUploading ? (
+                            <>⏳ Uploading {selectedGalleryPhotos.length} photos...</>
+                          ) : (
+                            <>🚀 Upload All {selectedGalleryPhotos.length} Photos</>
+                          )}
+                        </button>
+                        
+                        {galleryPhotoUploading && (
+                          <div className="w-full bg-gray-700 rounded-full h-2 mt-2 overflow-hidden">
+                            <div className="bg-green-500 h-full transition-all duration-300 animate-pulse" style={{ width: '100%' }} />
+                            <p className="text-xs text-gray-400 mt-1 text-center">Uploading batch...</p>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </>
@@ -2510,31 +3263,142 @@ function AdminPanel() {
                   ) : (
                     <div className="mb-3">
                       <label className="block w-full bg-gray-700 text-white p-3 rounded-lg cursor-pointer hover:bg-gray-600 transition-colors text-center">
-                        🎥 Choose Video File (MP4, WebM, MOV)
+                        🎥 Choose Video File(s) (MP4, WebM, MOV)
                         <input
                           type="file"
                           accept="video/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              // Check file size (max 100MB for Cloudinary free tier)
-                              const maxSize = 100 * 1024 * 1024; // 100MB
-                              if (file.size > maxSize) {
-                                alert('Video file is too large. Maximum size is 100MB.');
-                                return;
-                              }
-                              const reader = new FileReader();
-                              reader.onloadend = () => {
-                                setGalleryVideoUploadPreview(URL.createObjectURL(file));
-                                setNewGalleryVideo({ ...newGalleryVideo, src: reader.result, type: 'uploaded' });
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
+                          multiple
+                          onChange={handleGalleryVideoFileSelect}
                           className="hidden"
                         />
                       </label>
-                      {galleryVideoUploadPreview && (
+
+                      {/* Multiple video metadata editor */}
+                      {selectedGalleryVideos.length > 1 && (
+                        <div className="mt-3 bg-gray-700 p-4 rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-white font-medium">
+                              🎬 Editing Video {currentGalleryVideoIndex + 1} of {selectedGalleryVideos.length}
+                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setCurrentGalleryVideoIndex(Math.max(0, currentGalleryVideoIndex - 1))}
+                                disabled={currentGalleryVideoIndex === 0}
+                                className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                              >
+                                ← Previous
+                              </button>
+                              <button
+                                onClick={() => setCurrentGalleryVideoIndex(Math.min(selectedGalleryVideos.length - 1, currentGalleryVideoIndex + 1))}
+                                disabled={currentGalleryVideoIndex === selectedGalleryVideos.length - 1}
+                                className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                              >
+                                Next →
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Current video preview */}
+                          <div className="flex items-center gap-3 mb-3 p-2 bg-gray-800 rounded">
+                            <div className="w-16 h-10 bg-gray-900 rounded flex items-center justify-center text-2xl">
+                              🎥
+                            </div>
+                            <div className="flex-1 text-sm">
+                              <p className="text-white font-medium truncate">{selectedGalleryVideos[currentGalleryVideoIndex]?.name}</p>
+                              <p className="text-gray-400">{(selectedGalleryVideos[currentGalleryVideoIndex]?.size / (1024 * 1024)).toFixed(2)} MB</p>
+                            </div>
+                          </div>
+
+                          {/* Metadata inputs for current video */}
+                          <input
+                            type="text"
+                            placeholder="Video Title *"
+                            value={selectedGalleryVideos[currentGalleryVideoIndex]?.title || ''}
+                            onChange={(e) => {
+                              const updated = [...selectedGalleryVideos];
+                              updated[currentGalleryVideoIndex].title = e.target.value;
+                              setSelectedGalleryVideos(updated);
+                            }}
+                            className="w-full bg-gray-600 text-white p-2 rounded mb-2"
+                          />
+
+                          <select
+                            value={selectedGalleryVideos[currentGalleryVideoIndex]?.category || 'events'}
+                            onChange={(e) => {
+                              const updated = [...selectedGalleryVideos];
+                              updated[currentGalleryVideoIndex].category = e.target.value;
+                              setSelectedGalleryVideos(updated);
+                            }}
+                            className="w-full bg-gray-600 text-white p-2 rounded mb-2"
+                          >
+                            <option value="events">🎉 School Events</option>
+                            <option value="sports">⚽ Sports Day</option>
+                            <option value="cultural">🎭 Cultural Programs</option>
+                            <option value="classroom">📚 Classroom Activities</option>
+                            <option value="campus">🏫 Campus Tour</option>
+                            <option value="other">🎬 Other</option>
+                          </select>
+
+                          <textarea
+                            placeholder="Description (optional)"
+                            value={selectedGalleryVideos[currentGalleryVideoIndex]?.description || ''}
+                            onChange={(e) => {
+                              const updated = [...selectedGalleryVideos];
+                              updated[currentGalleryVideoIndex].description = e.target.value;
+                              setSelectedGalleryVideos(updated);
+                            }}
+                            className="w-full bg-gray-600 text-white p-2 rounded mb-2 h-16 resize-none"
+                          />
+
+                          <div className="grid grid-cols-2 gap-2 mb-2">
+                            <input
+                              type="number"
+                              placeholder="Order"
+                              value={selectedGalleryVideos[currentGalleryVideoIndex]?.order || 0}
+                              onChange={(e) => {
+                                const updated = [...selectedGalleryVideos];
+                                updated[currentGalleryVideoIndex].order = parseInt(e.target.value) || 0;
+                                setSelectedGalleryVideos(updated);
+                              }}
+                              className="bg-gray-600 text-white p-2 rounded"
+                            />
+                            <select
+                              value={selectedGalleryVideos[currentGalleryVideoIndex]?.year || '2025-26'}
+                              onChange={(e) => {
+                                const updated = [...selectedGalleryVideos];
+                                updated[currentGalleryVideoIndex].year = e.target.value;
+                                setSelectedGalleryVideos(updated);
+                              }}
+                              className="bg-gray-600 text-white p-2 rounded"
+                            >
+                              <option value="2025-26">📅 2025-26</option>
+                              <option value="2024-25">📅 2024-25</option>
+                              <option value="2023-24">📅 2023-24</option>
+                              <option value="2022-23">📅 2022-23</option>
+                            </select>
+                          </div>
+
+                          {/* Thumbnail navigation */}
+                          <div className="grid grid-cols-5 gap-2 mt-3">
+                            {selectedGalleryVideos.map((video, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => setCurrentGalleryVideoIndex(idx)}
+                                className={`aspect-video rounded p-2 flex flex-col items-center justify-center text-xs ${
+                                  idx === currentGalleryVideoIndex
+                                    ? 'bg-blue-600 text-white ring-2 ring-blue-400'
+                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                }`}
+                              >
+                                <div className="text-lg">🎥</div>
+                                <div className="truncate w-full text-center">{idx + 1}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedGalleryVideos.length <= 1 && galleryVideoUploadPreview && (
                         <div className="mt-3">
                           <p className="text-gray-400 text-sm mb-2">Preview:</p>
                           <video 
@@ -2552,29 +3416,6 @@ function AdminPanel() {
                     const renderVideoPreview = () => {
                       const url = newGalleryVideo.src;
                       const type = newGalleryVideo.type;
-
-                      // Helper functions
-                      const getYouTubeId = (url) => {
-                        const patterns = [
-                          /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-                          /^([a-zA-Z0-9_-]{11})$/
-                        ];
-                        for (const pattern of patterns) {
-                          const match = url.match(pattern);
-                          if (match) return match[1];
-                        }
-                        return null;
-                      };
-
-                      const getVimeoId = (url) => {
-                        const match = url.match(/vimeo\.com\/(\d+)/);
-                        return match ? match[1] : null;
-                      };
-
-                      const getInstagramId = (url) => {
-                        const match = url.match(/instagram\.com\/(?:p|reel|tv)\/([^/?]+)/);
-                        return match ? match[1] : null;
-                      };
 
                       // Render based on video type
                       switch (type) {
@@ -2661,63 +3502,68 @@ function AdminPanel() {
                     );
                   })()}
 
-                  <input
-                    type="text"
-                    placeholder="Video Title *"
-                    value={newGalleryVideo.title}
-                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, title: e.target.value })}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
-                  />
-
-                  <select
-                    value={newGalleryVideo.category}
-                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, category: e.target.value })}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
-                  >
-                    <option value="events">🎉 School Events</option>
-                    <option value="sports">⚽ Sports Day</option>
-                    <option value="cultural">🎭 Cultural Programs</option>
-                    <option value="classroom">📚 Classroom Activities</option>
-                    <option value="campus">🏫 Campus Tour</option>
-                    <option value="other">🎬 Other</option>
-                  </select>
-
-                  <textarea
-                    placeholder="Description (optional)"
-                    value={newGalleryVideo.description}
-                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, description: e.target.value })}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-20 resize-none"
-                  />
-
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <input
-                      type="number"
-                      placeholder="Order"
-                      value={newGalleryVideo.order}
-                      onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, order: parseInt(e.target.value) || 0 })}
-                      className="bg-gray-700 text-white p-3 rounded-lg"
-                    />
-                    <label className="flex items-center gap-2 bg-gray-700 p-3 rounded-lg cursor-pointer">
+                  {/* Only show these fields when NOT batch uploading */}
+                  {(selectedGalleryVideos.length <= 1 || galleryVideoUploadMode === 'url') && (
+                    <>
                       <input
-                        type="checkbox"
-                        checked={newGalleryVideo.isActive}
-                        onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, isActive: e.target.checked })}
-                        className="w-4 h-4"
+                        type="text"
+                        placeholder="Video Title *"
+                        value={newGalleryVideo.title}
+                        onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, title: e.target.value })}
+                        className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
                       />
-                      <span className="text-white text-sm">Active</span>
-                    </label>
-                  </div>
 
-                  <select
-                    value={newGalleryVideo.year}
-                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, year: e.target.value })}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-4"
-                  >
-                    <option value="2025-26">📅 2025-26</option>
-                    <option value="2024-25">📅 2024-25</option>
-                    <option value="2023-24">📅 2023-24</option>
-                    <option value="2022-23">📅 2022-23</option>
-                  </select>
+                      <select
+                        value={newGalleryVideo.category}
+                        onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, category: e.target.value })}
+                        className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+                      >
+                        <option value="events">🎉 School Events</option>
+                        <option value="sports">⚽ Sports Day</option>
+                        <option value="cultural">🎭 Cultural Programs</option>
+                        <option value="classroom">📚 Classroom Activities</option>
+                        <option value="campus">🏫 Campus Tour</option>
+                        <option value="other">🎬 Other</option>
+                      </select>
+
+                      <textarea
+                        placeholder="Description (optional)"
+                        value={newGalleryVideo.description}
+                        onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, description: e.target.value })}
+                        className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 h-20 resize-none"
+                      />
+
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <input
+                          type="number"
+                          placeholder="Order"
+                          value={newGalleryVideo.order}
+                          onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, order: parseInt(e.target.value) || 0 })}
+                          className="bg-gray-700 text-white p-3 rounded-lg"
+                        />
+                        <label className="flex items-center gap-2 bg-gray-700 p-3 rounded-lg cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newGalleryVideo.isActive}
+                            onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, isActive: e.target.checked })}
+                            className="w-4 h-4"
+                          />
+                          <span className="text-white text-sm">Active</span>
+                        </label>
+                      </div>
+
+                      <select
+                        value={newGalleryVideo.year}
+                        onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, year: e.target.value })}
+                        className="w-full bg-gray-700 text-white p-3 rounded-lg mb-4"
+                      >
+                        <option value="2025-26">📅 2025-26</option>
+                        <option value="2024-25">📅 2024-25</option>
+                        <option value="2023-24">📅 2023-24</option>
+                        <option value="2022-23">📅 2022-23</option>
+                      </select>
+                    </>
+                  )}
 
                   <div className="flex gap-3">
                     {editingGalleryVideo ? (
@@ -2758,7 +3604,74 @@ function AdminPanel() {
                           ❌ Cancel
                         </button>
                       </>
+                    ) : selectedGalleryVideos.length > 1 ? (
+                      // Batch upload button for multiple videos
+                      <button
+                        onClick={async () => {
+                          // Check that all videos have required title
+                          const missingTitles = selectedGalleryVideos.filter(v => !v.title?.trim());
+                          if (missingTitles.length > 0) {
+                            alert(`Please provide titles for all videos. ${missingTitles.length} video(s) missing titles.`);
+                            return;
+                          }
+
+                          setGalleryVideoUploading(true);
+                          setGalleryVideoUploadProgress(0);
+
+                          try {
+                            // Prepare batch upload data
+                            const videosData = selectedGalleryVideos.map(video => ({
+                              videoData: video.data,
+                              title: video.title,
+                              description: video.description || '',
+                              category: video.category || 'events',
+                              year: video.year || '2025-26',
+                              order: video.order || 0,
+                              type: 'uploaded',
+                              isActive: true
+                            }));
+
+                            const response = await fetch(`${API_URL}/admin/video-gallery/batch-upload`, {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${token}`
+                              },
+                              body: JSON.stringify({ videos: videosData })
+                            });
+
+                            if (response.ok) {
+                              const result = await response.json();
+                              alert(`Successfully uploaded ${result.successCount} of ${selectedGalleryVideos.length} videos!`);
+                              
+                              // Reset state
+                              setSelectedGalleryVideos([]);
+                              setCurrentGalleryVideoIndex(0);
+                              setGalleryVideoUploadPreview('');
+                              fetchGalleryVideos();
+                            } else {
+                              const error = await response.json();
+                              alert(`Upload failed: ${error.error || 'Unknown error'}`);
+                            }
+                          } catch (error) {
+                            console.error('Batch upload error:', error);
+                            alert('Network error. Please try again.');
+                          } finally {
+                            setGalleryVideoUploading(false);
+                            setGalleryVideoUploadProgress(0);
+                          }
+                        }}
+                        disabled={galleryVideoUploading}
+                        className="w-full bg-green-600 hover:bg-green-700 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {galleryVideoUploading ? (
+                          <span>📤 Uploading {selectedGalleryVideos.length} Videos...</span>
+                        ) : (
+                          `🎬 Upload All ${selectedGalleryVideos.length} Videos`
+                        )}
+                      </button>
                     ) : (
+                      // Single video upload button
                       <>
                         <button
                           onClick={async () => {

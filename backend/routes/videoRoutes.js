@@ -127,6 +127,93 @@ router.post('/upload', authMiddleware, async (req, res) => {
     }
 });
 
+// Batch upload videos - handles multiple videos at once
+router.post('/batch-upload', authMiddleware, async (req, res) => {
+    try {
+        const { videos } = req.body; // Array of { videoData, title, description, thumbnail, order, isActive }
+
+        if (!videos || !Array.isArray(videos) || videos.length === 0) {
+            return res.status(400).json({ message: 'Invalid videos array. Must provide at least one video.' });
+        }
+
+        if (videos.length > 10) {
+            return res.status(400).json({ message: 'Maximum 10 videos allowed per batch upload.' });
+        }
+
+        const uploadResults = [];
+        const errors = [];
+
+        // Process each video
+        for (let i = 0; i < videos.length; i++) {
+            const { videoData, title, description, thumbnail, order, isActive } = videos[i];
+
+            try {
+                if (!videoData || !videoData.startsWith('data:video/')) {
+                    errors.push({ index: i, error: 'Invalid video data format' });
+                    continue;
+                }
+
+                if (!title || !title.trim()) {
+                    errors.push({ index: i, error: 'Title is required' });
+                    continue;
+                }
+
+                // Upload to Cloudinary
+                const uploadResult = await uploadVideoToCloudinary(videoData, 'schoolweb/videos', {
+                    public_id: `video_${Date.now()}_${i}`,
+                    resource_type: 'video'
+                });
+
+                if (!uploadResult.success) {
+                    errors.push({ index: i, error: uploadResult.error });
+                    continue;
+                }
+
+                // Store video with Cloudinary URLs in MongoDB
+                const video = new Video({
+                    title: title.trim(),
+                    description: description || '',
+                    src: uploadResult.url,
+                    type: 'uploaded',
+                    thumbnail: thumbnail || uploadResult.thumbnailUrl,
+                    order: order || 0,
+                    isActive: isActive !== false,
+                    cloudinaryId: uploadResult.publicId,
+                    cloudinaryUrls: {
+                        thumbnail: uploadResult.thumbnailUrl,
+                        sd: uploadResult.sdUrl,
+                        hd: uploadResult.hdUrl,
+                        original: uploadResult.url
+                    }
+                });
+
+                await video.save();
+                uploadResults.push({
+                    index: i,
+                    success: true,
+                    video: {
+                        _id: video._id,
+                        title: video.title,
+                        src: video.src
+                    }
+                });
+            } catch (error) {
+                errors.push({ index: i, error: error.message });
+            }
+        }
+
+        res.status(201).json({
+            message: `Batch upload completed: ${uploadResults.length} successful, ${errors.length} failed`,
+            successful: uploadResults,
+            failed: errors,
+            total: videos.length
+        });
+    } catch (error) {
+        console.error('Error in batch upload:', error);
+        res.status(500).json({ message: 'Error processing batch upload', error: error.message });
+    }
+});
+
 // Update video
 router.put('/:id', authMiddleware, async (req, res) => {
     try {

@@ -154,6 +154,98 @@ router.post('/upload', authMiddleware, async (req, res) => {
     }
 });
 
+// Batch upload gallery photos - handles multiple photos at once
+router.post('/batch-upload', authMiddleware, async (req, res) => {
+    try {
+        const { photos } = req.body; // Array of { imageData, title, description, category, year, order, isActive }
+
+        if (!photos || !Array.isArray(photos) || photos.length === 0) {
+            return res.status(400).json({ message: 'Invalid photos array. Must provide at least one photo.' });
+        }
+
+        if (photos.length > 20) {
+            return res.status(400).json({ message: 'Maximum 20 photos allowed per batch upload.' });
+        }
+
+        const uploadResults = [];
+        const errors = [];
+
+        // Process each photo
+        for (let i = 0; i < photos.length; i++) {
+            const { imageData, title, description, category, year, order, isActive } = photos[i];
+
+            try {
+                if (!imageData || !imageData.startsWith('data:image/')) {
+                    errors.push({ index: i, error: 'Invalid image data format' });
+                    continue;
+                }
+
+                if (!title || !category) {
+                    errors.push({ index: i, error: 'Title and category are required' });
+                    continue;
+                }
+
+                // Upload to Cloudinary with automatic optimization
+                const cloudinaryFolder = `schoolweb/gallery/${category}`;
+                const uploadResult = await uploadToCloudinary(imageData, cloudinaryFolder, {
+                    public_id: `${category}_${Date.now()}_${i}`,
+                    resource_type: 'image'
+                });
+
+                if (!uploadResult.success) {
+                    errors.push({ index: i, error: uploadResult.error });
+                    continue;
+                }
+
+                // Store photo with Cloudinary URLs in MongoDB
+                const photo = new Gallery({
+                    src: uploadResult.url,
+                    title: title.trim(),
+                    category,
+                    description: description || '',
+                    year: year || '2025-26',
+                    order: order || 0,
+                    isActive: isActive !== false,
+                    isUploaded: true,
+                    cloudinaryId: uploadResult.publicId,
+                    cloudinaryUrls: {
+                        thumbnail: uploadResult.thumbnailUrl,
+                        medium: uploadResult.mediumUrl,
+                        large: uploadResult.largeUrl,
+                        blur: uploadResult.blurUrl,
+                        original: uploadResult.url
+                    },
+                    mimeType: `image/${uploadResult.format}`
+                });
+
+                await photo.save();
+                uploadResults.push({
+                    index: i,
+                    success: true,
+                    photo: {
+                        _id: photo._id,
+                        title: photo.title,
+                        src: photo.src,
+                        category: photo.category
+                    }
+                });
+            } catch (error) {
+                errors.push({ index: i, error: error.message });
+            }
+        }
+
+        res.status(201).json({
+            message: `Batch upload completed: ${uploadResults.length} successful, ${errors.length} failed`,
+            successful: uploadResults,
+            failed: errors,
+            total: photos.length
+        });
+    } catch (error) {
+        console.error('Error in batch upload:', error);
+        res.status(500).json({ message: 'Error processing batch upload', error: error.message });
+    }
+});
+
 // Update gallery photo
 router.put('/:id', authMiddleware, async (req, res) => {
     try {

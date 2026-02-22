@@ -18,9 +18,14 @@ function VideoPlayer() {
       const video = document.createElement('video');
       video.crossOrigin = 'anonymous';
       video.src = videoUrl;
-      video.currentTime = 1; // Seek to 1 second
+      video.muted = true; // Mute to allow autoplay if needed
+      video.preload = 'metadata';
 
-      video.addEventListener('loadeddata', () => {
+      video.addEventListener('loadedmetadata', () => {
+        video.currentTime = 1; // Seek to 1 second after metadata is loaded
+      });
+
+      video.addEventListener('seeked', () => {
         try {
           const canvas = document.createElement('canvas');
           canvas.width = video.videoWidth || 640;

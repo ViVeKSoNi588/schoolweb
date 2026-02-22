@@ -140,6 +140,91 @@ router.post('/upload', authMiddleware, async (req, res) => {
     }
 });
 
+// Batch upload images - handles multiple images at once
+router.post('/batch-upload', authMiddleware, async (req, res) => {
+    try {
+        const { images } = req.body; // Array of { imageData, alt, order, isActive, category }
+
+        if (!images || !Array.isArray(images) || images.length === 0) {
+            return res.status(400).json({ message: 'Invalid images array. Must provide at least one image.' });
+        }
+
+        if (images.length > 20) {
+            return res.status(400).json({ message: 'Maximum 20 images allowed per batch upload.' });
+        }
+
+        const uploadResults = [];
+        const errors = [];
+
+        // Process each image
+        for (let i = 0; i < images.length; i++) {
+            const { imageData, alt, order, isActive, category } = images[i];
+
+            try {
+                if (!imageData || !imageData.startsWith('data:image/')) {
+                    errors.push({ index: i, error: 'Invalid image data format' });
+                    continue;
+                }
+
+                // Upload to Cloudinary with automatic optimization
+                const cloudinaryFolder = `schoolweb/carousel/${category || 'home'}`;
+                const uploadResult = await uploadToCloudinary(imageData, cloudinaryFolder, {
+                    public_id: `carousel_${Date.now()}_${i}`,
+                    resource_type: 'image'
+                });
+
+                if (!uploadResult.success) {
+                    errors.push({ index: i, error: uploadResult.error });
+                    continue;
+                }
+
+                // Store image with Cloudinary URLs in MongoDB
+                const image = new Image({
+                    src: uploadResult.url,
+                    alt: alt || `Uploaded image ${i + 1}`,
+                    order: order || 0,
+                    isActive: isActive !== false,
+                    isUploaded: true,
+                    cloudinaryId: uploadResult.publicId,
+                    cloudinaryUrls: {
+                        thumbnail: uploadResult.thumbnailUrl,
+                        medium: uploadResult.mediumUrl,
+                        large: uploadResult.largeUrl,
+                        blur: uploadResult.blurUrl,
+                        original: uploadResult.url
+                    },
+                    mimeType: `image/${uploadResult.format}`,
+                    category: category || 'home'
+                });
+
+                await image.save();
+                uploadResults.push({
+                    index: i,
+                    success: true,
+                    image: {
+                        _id: image._id,
+                        src: image.src,
+                        alt: image.alt,
+                        category: image.category
+                    }
+                });
+            } catch (error) {
+                errors.push({ index: i, error: error.message });
+            }
+        }
+
+        res.status(201).json({
+            message: `Batch upload completed: ${uploadResults.length} successful, ${errors.length} failed`,
+            successful: uploadResults,
+            failed: errors,
+            total: images.length
+        });
+    } catch (error) {
+        console.error('Error in batch upload:', error);
+        res.status(500).json({ message: 'Error processing batch upload', error: error.message });
+    }
+});
+
 // Update image
 router.put('/:id', authMiddleware, async (req, res) => {
     try {

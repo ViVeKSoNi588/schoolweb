@@ -60,8 +60,10 @@ try {
 // Connect to MongoDB
 connectDB();
 
-// Start periodic cleanup tasks
-startCleanupJob();
+// Start periodic cleanup tasks (skip in serverless environments)
+if (process.env.VERCEL !== '1') {
+  startCleanupJob();
+}
 
 // Routes
 app.use('/api/admin', adminRoutes); // Login, Setup, Verify, Reset
