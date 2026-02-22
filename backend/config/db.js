@@ -16,7 +16,7 @@ const connectDB = async () => {
   if (!cached.promise) {
     const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/schoolweb';
     cached.promise = mongoose.connect(MONGODB_URI, {
-      bufferCommands: false,
+      bufferCommands: true,  // allow Mongoose to queue ops until connection is ready
       maxPoolSize: 10,
     }).then((conn) => {
       console.log(`✅ Connected to MongoDB: ${conn.connection.host}`);

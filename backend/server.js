@@ -57,8 +57,16 @@ try {
   console.warn('⚠️ Warning: Could not create upload directories (likely read-only environment like Vercel). File uploads may not work.');
 }
 
-// Connect to MongoDB
-connectDB();
+// Middleware: ensure DB is connected before every request (critical for serverless)
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('DB connection failed:', err.message);
+    res.status(503).json({ error: 'Database unavailable. Please try again shortly.' });
+  }
+});
 
 // Start periodic cleanup tasks (skip in serverless environments)
 if (process.env.VERCEL !== '1') {
