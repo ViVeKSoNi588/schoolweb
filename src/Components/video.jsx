@@ -1,66 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
 import API_URL from '../config';
 
+const CACHE_KEY = 'vat_videos_cache';
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) { localStorage.removeItem(CACHE_KEY); return null; }
+    return data;
+  } catch { return null; }
+}
+function setCache(data) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch {}
+}
+
 function VideoPlayer() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activatedVideos, setActivatedVideos] = useState(new Set());
-  const [generatedThumbnails, setGeneratedThumbnails] = useState({});
-
-  // Generate thumbnail from direct video URL
-  const generateVideoThumbnail = async (videoUrl, videoId) => {
-    // Check if already generated
-    if (generatedThumbnails[videoId]) {
-      return generatedThumbnails[videoId];
-    }
-
-    return new Promise((resolve) => {
-      const video = document.createElement('video');
-      video.crossOrigin = 'anonymous';
-      video.src = videoUrl;
-      video.muted = true; // Mute to allow autoplay if needed
-      video.preload = 'metadata';
-
-      video.addEventListener('loadedmetadata', () => {
-        video.currentTime = 1; // Seek to 1 second after metadata is loaded
-      });
-
-      video.addEventListener('seeked', () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth || 640;
-          canvas.height = video.videoHeight || 360;
-          
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          
-          const thumbnail = canvas.toDataURL('image/jpeg', 0.7);
-          
-          // Cache the generated thumbnail
-          setGeneratedThumbnails(prev => ({ ...prev, [videoId]: thumbnail }));
-          
-          resolve(thumbnail);
-        } catch (error) {
-          console.error('Error generating thumbnail:', error);
-          resolve(null);
-        } finally {
-          video.remove();
-        }
-      });
-
-      video.addEventListener('error', () => {
-        console.error('Error loading video for thumbnail');
-        video.remove();
-        resolve(null);
-      });
-
-      // Timeout fallback
-      setTimeout(() => {
-        video.remove();
-        resolve(null);
-      }, 5000);
-    });
-  };
 
   const activateVideo = useCallback((id) => {
     setActivatedVideos(prev => {
@@ -71,22 +31,14 @@ function VideoPlayer() {
   }, []);
 
   useEffect(() => {
-    fetchVideos();
+    const cached = getCache();
+    if (cached) { setVideos(cached); setLoading(false); return; }
+    fetch(`${API_URL}/videos`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { setVideos(data); setCache(data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
-
-  const fetchVideos = async () => {
-    try {
-      const res = await fetch(`${API_URL}/videos`);
-      if (res.ok) {
-        const data = await res.json();
-        setVideos(data);
-      }
-    } catch (error) {
-      console.error('Error fetching videos:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Extract YouTube video ID from various URL formats
   const getYouTubeId = (url) => {
@@ -146,40 +98,17 @@ function VideoPlayer() {
       return instaMatch ? `https://www.instagram.com/p/${instaMatch[1]}/media/?size=l` : null;
     }
     
-    // For direct videos, check if we have a generated thumbnail
+    // For direct/uploaded videos, use stored thumbnail only (no client-side generation)
     if (platform === 'direct' || platform === 'url' || platform === 'uploaded') {
-      if (generatedThumbnails[video._id]) {
-        return generatedThumbnails[video._id];
-      }
       return video.thumbnail || null;
     }
     
     return video.thumbnail || null;
   };
 
-  // DirectVideoThumbnail component for direct videos
+  // DirectVideoThumbnail — no video download, static placeholder only
   const DirectVideoThumbnail = ({ video, onClick }) => {
-    const [thumbnailUrl, setThumbnailUrl] = useState(getVideoThumbnail(video));
-    const [isLoading, setIsLoading] = useState(false);
-    const platform = video.type || detectPlatform(video.src);
-
-    useEffect(() => {
-      // Generate thumbnail for direct videos if not already generated
-      if ((platform === 'direct' || platform === 'url' || platform === 'uploaded') && !generatedThumbnails[video._id] && !video.thumbnail) {
-        setIsLoading(true);
-        let videoSrc = video.src;
-        if (video.type === 'uploaded' && video.src.startsWith('/uploads')) {
-          videoSrc = `${API_URL.replace('/api', '')}${video.src}`;
-        }
-        generateVideoThumbnail(videoSrc, video._id).then((thumbnail) => {
-          if (thumbnail) {
-            setThumbnailUrl(thumbnail);
-          }
-          setIsLoading(false);
-        });
-      }
-    }, [video._id, video.src, video.thumbnail, video.type, platform]);
-
+    const thumbnailUrl = getVideoThumbnail(video);
     return (
       <button
         className="absolute inset-0 w-full h-full bg-black cursor-pointer group"
@@ -195,16 +124,11 @@ function VideoPlayer() {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-900">
-            {isLoading ? (
-              <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <svg className="w-16 h-16 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M10 16.5l6-4.5-6-4.5v9zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-              </svg>
-            )}
+            <svg className="w-16 h-16 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M10 16.5l6-4.5-6-4.5v9zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+            </svg>
           </div>
         )}
-        {/* Play button overlay */}
         <span className="absolute inset-0 flex items-center justify-center">
           <span className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200">
             <svg className="w-5 h-5 text-white ml-1" viewBox="0 0 24 24" fill="currentColor">

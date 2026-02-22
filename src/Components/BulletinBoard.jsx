@@ -1,6 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import API_URL from '../config';
 
+const CACHE_KEY = 'vat_bulletin_cache';
+const CACHE_TTL = 5 * 60 * 1000;
+function getCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) { localStorage.removeItem(CACHE_KEY); return null; }
+    return data;
+  } catch { return null; }
+}
+function setCache(data) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch {}
+}
+
 function BulletinBoard({ className = '' }) {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,29 +32,20 @@ function BulletinBoard({ className = '' }) {
   ];
 
   useEffect(() => {
-    fetchAnnouncements();
-  }, []);
-
-  const fetchAnnouncements = async () => {
-    try {
-      const res = await fetch(`${API_URL}/admin/content?collection=announcements`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.length > 0) {
-          setAnnouncements(data);
-        } else {
-          setAnnouncements(defaultAnnouncements);
-        }
-      } else {
-        setAnnouncements(defaultAnnouncements);
-      }
-    } catch (err) {
-      console.error('Error fetching announcements:', err);
-      setAnnouncements(defaultAnnouncements);
-    } finally {
+    const cached = getCache();
+    if (cached && cached.length > 0) {
+      setAnnouncements(cached);
       setLoading(false);
     }
-  };
+    fetch(`${API_URL}/admin/content?collection=announcements`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        if (data.length > 0) { setCache(data); setAnnouncements(data); }
+        else if (!cached || cached.length === 0) setAnnouncements(defaultAnnouncements);
+      })
+      .catch(() => { if (!cached || cached.length === 0) setAnnouncements(defaultAnnouncements); })
+      .finally(() => setLoading(false));
+  }, []);
 
   // Auto scroll effect
   useEffect(() => {

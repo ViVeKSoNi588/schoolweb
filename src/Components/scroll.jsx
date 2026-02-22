@@ -9,6 +9,22 @@ const DEFAULT_IMAGES = [
   { src: 'https://picsum.photos/1200/400?random=2', alt: 'Placeholder 2' },
 ];
 
+const CACHE_KEY = 'vat_carousel_cache';
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCache(category) {
+  try {
+    const raw = localStorage.getItem(`${CACHE_KEY}_${category}`);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) { localStorage.removeItem(`${CACHE_KEY}_${category}`); return null; }
+    return data;
+  } catch { return null; }
+}
+function setCache(category, data) {
+  try { localStorage.setItem(`${CACHE_KEY}_${category}`, JSON.stringify({ data, ts: Date.now() })); } catch {}
+}
+
 function ImageCarousel({ interval = 3000, category = '' }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [images, setImages] = useState(DEFAULT_IMAGES);
@@ -36,7 +52,7 @@ function ImageCarousel({ interval = 3000, category = '' }) {
         case 'blur':
           return image.cloudinaryUrls.blur || image.src;
         default:
-          return image.cloudinaryUrls.original || image.src;
+          return image.cloudinaryUrls.medium || image.cloudinaryUrls.original || image.src;
       }
     }
     
@@ -68,10 +84,11 @@ function ImageCarousel({ interval = 3000, category = '' }) {
   }, []);
 
   // Pre-calculate URLs to avoid recalculating on every render
+  // Use 'medium' for carousel — good quality, much smaller than 'large'
   const formattedImages = useMemo(() => {
     return images.map(img => ({
       ...img,
-      displayUrl: cleanImageUrl(img)
+      displayUrl: cleanImageUrl(img, 'medium')
     }));
   }, [images, cleanImageUrl]);
 
@@ -79,18 +96,24 @@ function ImageCarousel({ interval = 3000, category = '' }) {
     setLoadedImages(prev => new Set([...prev, index]));
   }, []);
 
-  // Fetch from MongoDB
+  // Fetch from MongoDB — with localStorage cache to skip cold starts on repeat visits
   useEffect(() => {
     const fetchImages = async () => {
-      setLoading(true);
+      // Serve cached data instantly, then refresh in background
+      const cached = getCache(category);
+      if (cached) {
+        setImages(cached);
+        setLoading(false);
+      }
       try {
-        const url = category 
-          ? `${API_URL}/images?category=${category}` 
+        const url = category
+          ? `${API_URL}/images?category=${category}`
           : `${API_URL}/images`;
         const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
           if (data && data.length > 0) {
+            setCache(category, data);
             setImages(data);
           }
         }
@@ -147,6 +170,8 @@ function ImageCarousel({ interval = 3000, category = '' }) {
               src={image.displayUrl}
               alt={image.alt || 'Carousel Image'}
               loading={index === 0 ? 'eager' : 'lazy'}
+              fetchpriority={index === 0 ? 'high' : 'low'}
+              decoding="async"
               onLoad={() => handleImageLoad(index)}
               className={`w-full object-cover transition-opacity duration-500 ${
                 loadedImages.has(index) ? 'opacity-100' : 'opacity-0'

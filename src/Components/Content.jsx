@@ -1,6 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import API_URL from '../config';
 
+const CACHE_TTL = 5 * 60 * 1000;
+function getCache(id) {
+  try {
+    const raw = localStorage.getItem(`vat_content_${id}`);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) { localStorage.removeItem(`vat_content_${id}`); return null; }
+    return data;
+  } catch { return null; }
+}
+function setCache(id, data) {
+  try { localStorage.setItem(`vat_content_${id}`, JSON.stringify({ data, ts: Date.now() })); } catch {}
+}
+
 // Reusable Content component
 // Usage: <Content id="unique_content_id" />
 // Add content in Admin Panel -> Database -> sitecontents collection
@@ -10,10 +24,13 @@ function Content({ id, className = '' }) {
   const [loading, setLoading] = useState(true);
 
   const fetchContent = useCallback(async () => {
+    const cached = getCache(id);
+    if (cached) { setContent(cached); setLoading(false); }
     try {
       const res = await fetch(`${API_URL}/content/${id}`);
       if (res.ok) {
         const data = await res.json();
+        setCache(id, data);
         setContent(data);
       }
     } catch (error) {
