@@ -3333,7 +3333,7 @@ function AdminPanel() {
                           >
                             <option value="events">🎉 School Events</option>
                             <option value="sports">⚽ Sports Day</option>
-                            <option value="cultural">🎭 Cultural Programs</option>
+                            <option value="Republic">🎭 Republic Day</option>
                             <option value="classroom">📚 Classroom Activities</option>
                             <option value="campus">🏫 Campus Tour</option>
                             <option value="other">🎬 Other</option>
