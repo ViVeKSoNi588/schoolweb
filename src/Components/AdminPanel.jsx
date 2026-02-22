@@ -193,7 +193,7 @@ function AdminPanel() {
   const CATEGORY_OPTIONS = [
     { value: 'events', label: '🎉 School Events' },
     { value: 'sports', label: '⚽ Sports Day' },
-    { value: 'cultural', label: '🎭 Cultural Programs' },
+    { value: 'Republic', label: '🎭 Republic Day' },
     { value: 'classroom', label: '📚 Classroom Activities' },
     { value: 'campus', label: '🏫 Campus Tour' },
     { value: 'other', label: '🎬 Other' }
