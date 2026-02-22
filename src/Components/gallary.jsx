@@ -5,9 +5,29 @@ import API_URL from '../config';
 // Get base URL without /api for static files
 const BASE_URL = API_URL.replace('/api', '');
 
-// Helper to get full image URL
-const getImageUrl = (src) => {
-  if (!src) return '';
+// Helper to get full image URL (supports legacy and Cloudinary)
+const getImageUrl = (image, size = 'original') => {
+  if (!image) return '';
+  
+  // If cloudinaryUrls exist, use optimized URLs
+  if (image.cloudinaryUrls) {
+    switch(size) {
+      case 'thumbnail':
+        return image.cloudinaryUrls.thumbnail || image.src;
+      case 'medium':
+        return image.cloudinaryUrls.medium || image.src;
+      case 'large':
+        return image.cloudinaryUrls.large || image.src;
+      case 'blur':
+        return image.cloudinaryUrls.blur || image.src;
+      default:
+        return image.cloudinaryUrls.original || image.src;
+    }
+  }
+  
+  // Legacy support: use src field
+  const src = image.src || image;
+  
   // If it's a full URL (http/https) or base64, return as-is
   if (src.startsWith('http') || src.startsWith('data:')) {
     return src;
@@ -185,7 +205,7 @@ function Gallery() {
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
                   <img
-                    src={getImageUrl(image.src)}
+                    src={getImageUrl(image, 'thumbnail')}
                     alt={image.title}
                     loading="lazy"
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
@@ -271,7 +291,7 @@ function Gallery() {
             onClick={(e) => e.stopPropagation()}
           >
             <img
-              src={getImageUrl(selectedImage.src)}
+              src={getImageUrl(selectedImage, 'large')}
               alt={selectedImage.title}
               className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
             />

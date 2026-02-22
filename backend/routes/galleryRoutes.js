@@ -1,13 +1,7 @@
 import express from 'express';
 import Gallery from '../models/Gallery.js';
 import authMiddleware from '../middleware/authMiddleware.js';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import fs from 'fs';
-import crypto from 'crypto';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { uploadToCloudinary, deleteFromCloudinary, extractPublicId, isCloudinaryUrl, getResponsiveUrls } from '../utils/cloudinary.js';
 
 const router = express.Router();
 
@@ -53,7 +47,7 @@ router.get('/admin', authMiddleware, async (req, res) => {
     }
 });
 
-// Add gallery photo (URL)
+// Add gallery photo (URL) - Auto-detects Cloudinary URLs and generates optimized versions
 router.post('/', authMiddleware, async (req, res) => {
     try {
         const { src, title, category, description, year, order, isActive } = req.body;
@@ -62,7 +56,7 @@ router.post('/', authMiddleware, async (req, res) => {
             return res.status(400).json({ message: 'Source, title, and category are required' });
         }
 
-        const photo = new Gallery({
+        const photoData = {
             src,
             title,
             category,
@@ -71,7 +65,19 @@ router.post('/', authMiddleware, async (req, res) => {
             order: order || 0,
             isActive: isActive !== false,
             isUploaded: false
-        });
+        };
+
+        // Auto-detect Cloudinary URLs and generate optimized versions
+        if (isCloudinaryUrl(src)) {
+            const publicId = extractPublicId(src);
+            if (publicId) {
+                photoData.cloudinaryId = publicId;
+                photoData.cloudinaryUrls = getResponsiveUrls(publicId);
+                console.log(`✅ Auto-detected Cloudinary image: ${publicId}`);
+            }
+        }
+
+        const photo = new Gallery(photoData);
         await photo.save();
         res.status(201).json(photo);
     } catch (error) {
@@ -79,7 +85,7 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 });
 
-// Upload gallery photo - saves to disk
+// Upload gallery photo - uses Cloudinary CDN
 router.post('/upload', authMiddleware, async (req, res) => {
     try {
         const { imageData, title, description, category, order, isActive, year } = req.body;
@@ -92,44 +98,58 @@ router.post('/upload', authMiddleware, async (req, res) => {
             return res.status(400).json({ message: 'Title and category are required' });
         }
 
-        // Extract mime type and extension
-        const mimeMatch = imageData.match(/^data:(image\/(\w+));base64,/);
-        const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-        const extension = mimeMatch ? mimeMatch[2] : 'jpg';
-        const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+        // Upload to Cloudinary with automatic optimization
+        const cloudinaryFolder = `schoolweb/gallery/${category}`;
+        const uploadResult = await uploadToCloudinary(imageData, cloudinaryFolder, {
+            public_id: `${category}_${Date.now()}`,
+            resource_type: 'image'
+        });
 
-        // Generate unique filename
-        const filename = `gallery_${Date.now()}_${crypto.randomBytes(8).toString('hex')}.${extension}`;
-        const filepath = join(__dirname, '../uploads', 'images', filename);
-
-        // Ensure directory exists
-        const imagesDir = join(__dirname, '../uploads', 'images');
-        if (!fs.existsSync(imagesDir)) {
-            fs.mkdirSync(imagesDir, { recursive: true });
+        if (!uploadResult.success) {
+            return res.status(500).json({ 
+                message: 'Failed to upload image to Cloudinary', 
+                error: uploadResult.error 
+            });
         }
 
-        // Save image file to disk
-        fs.writeFileSync(filepath, Buffer.from(base64Data, 'base64'));
-
-        // Store only the URL reference in MongoDB
-        const imageUrl = `/uploads/images/${filename}`;
-
+        // Store photo with Cloudinary URLs in MongoDB
         const photo = new Gallery({
-            src: imageUrl,
+            src: uploadResult.url, // Main Cloudinary URL
             title,
             category,
             description: description || '',
+            year: year || '2025-26',
             order: order || 0,
             isActive: isActive !== false,
-            year: year || '2025-26',
             isUploaded: true,
-            mimeType,
-            filename
+            cloudinaryId: uploadResult.publicId,
+            cloudinaryUrls: {
+                thumbnail: uploadResult.thumbnailUrl,
+                medium: uploadResult.mediumUrl,
+                large: uploadResult.largeUrl,
+                blur: uploadResult.blurUrl,
+                original: uploadResult.url
+            },
+            mimeType: `image/${uploadResult.format}`
         });
+
         await photo.save();
-        res.status(201).json(photo);
+
+        res.status(201).json({
+            message: 'Photo uploaded successfully',
+            photo: {
+                _id: photo._id,
+                src: photo.src,
+                title: photo.title,
+                category: photo.category,
+                description: photo.description,
+                cloudinaryUrls: photo.cloudinaryUrls,
+                isActive: photo.isActive,
+                createdAt: photo.createdAt
+            }
+        });
     } catch (error) {
-        console.error('Error uploading gallery photo:', error);
+        console.error('Gallery upload error:', error);
         res.status(400).json({ message: 'Error uploading gallery photo', error: error.message });
     }
 });
@@ -155,11 +175,12 @@ router.delete('/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ message: 'Photo not found' });
         }
 
-        // If it's an uploaded image, delete the file from disk
-        if (photo.isUploaded && photo.filename) {
-            const filepath = join(__dirname, '../uploads', 'images', photo.filename);
-            if (fs.existsSync(filepath)) {
-                fs.unlinkSync(filepath);
+        // If it's a Cloudinary image, delete from Cloudinary
+        if (photo.cloudinaryId) {
+            const deleteResult = await deleteFromCloudinary(photo.cloudinaryId);
+            if (!deleteResult.success) {
+                console.warn('Failed to delete from Cloudinary:', deleteResult.error);
+                // Continue with database deletion even if Cloudinary delete fails
             }
         }
 

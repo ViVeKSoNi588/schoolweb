@@ -10,6 +10,14 @@ const videoSchema = new mongoose.Schema({
     isActive: { type: Boolean, default: true },
     mimeType: { type: String }, // video/mp4, video/webm, etc.
     filename: { type: String }, // Stored filename for uploaded videos
+    // Cloudinary fields
+    cloudinaryId: { type: String }, // Cloudinary public_id for deletion
+    cloudinaryUrls: {
+        thumbnail: String,  // Video thumbnail
+        sd: String,         // Standard definition
+        hd: String,         // High definition
+        original: String    // Full quality
+    },
     createdAt: { type: Date, default: Date.now }
 });
 

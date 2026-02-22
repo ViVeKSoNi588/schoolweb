@@ -3,6 +3,7 @@
 import express from 'express';
 import VideoGallery from '../models/VideoGallery.js';
 import authMiddleware from '../middleware/authMiddleware.js';
+import { uploadVideoToCloudinary, deleteFromCloudinary, extractPublicId, isCloudinaryUrl, getResponsiveVideoUrls } from '../utils/cloudinary.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
@@ -55,7 +56,7 @@ router.get('/admin', authMiddleware, async (req, res) => {
     }
 });
 
-// Add video to gallery (YouTube URL or direct video URL)
+// Add video to gallery (YouTube URL or direct video URL) - Auto-detects Cloudinary URLs
 router.post('/', authMiddleware, async (req, res) => {
     try {
         const { title, description, src, type, thumbnail, category, order, isActive, year } = req.body;
@@ -71,7 +72,7 @@ router.post('/', authMiddleware, async (req, res) => {
             return res.status(400).json({ message: 'Category is required' });
         }
 
-        const video = new VideoGallery({
+        const videoData = {
             title: title.trim(),
             description: description || '',
             src: src.trim(),
@@ -81,7 +82,23 @@ router.post('/', authMiddleware, async (req, res) => {
             order: order || 0,
             isActive: isActive !== false,
             year: year || '2025-26'
-        });
+        };
+
+        // Auto-detect Cloudinary video URLs and generate optimized versions
+        if (isCloudinaryUrl(src)) {
+            const publicId = extractPublicId(src);
+            if (publicId) {
+                videoData.cloudinaryId = publicId;
+                videoData.cloudinaryUrls = getResponsiveVideoUrls(publicId);
+                // Use the thumbnail from Cloudinary if not provided
+                if (!thumbnail) {
+                    videoData.thumbnail = videoData.cloudinaryUrls.thumbnail;
+                }
+                console.log(`✅ Auto-detected Cloudinary video: ${publicId}`);
+            }
+        }
+
+        const video = new VideoGallery(videoData);
         await video.save();
         res.status(201).json(video);
     } catch (error) {
@@ -90,7 +107,7 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 });
 
-// Upload video to gallery as base64 - SAVES TO DISK
+// Upload video to gallery as base64 - uses Cloudinary CDN
 router.post('/upload', authMiddleware, async (req, res) => {
     try {
         const { videoData, title, description, thumbnail, category, order, isActive, year } = req.body;
@@ -103,56 +120,42 @@ router.post('/upload', authMiddleware, async (req, res) => {
             return res.status(400).json({ message: 'Category is required' });
         }
 
-        // Extract mime type and base64 data
-        const mimeMatch = videoData.match(/^data:(video\/(\w+));base64,/);
-        const mimeType = mimeMatch ? mimeMatch[1] : 'video/mp4';
-        const extension = mimeMatch ? mimeMatch[2] : 'mp4';
-        const base64Data = videoData.replace(/^data:video\/\w+;base64,/, '');
+        // Upload to Cloudinary with automatic optimization
+        const cloudinaryFolder = `schoolweb/videos/gallery/${category}`;
+        const uploadResult = await uploadVideoToCloudinary(videoData, cloudinaryFolder, {
+            public_id: `${category}_${Date.now()}`,
+            resource_type: 'video'
+        });
 
-        // Generate unique filename
-        const filename = `videogallery_${Date.now()}_${crypto.randomBytes(8).toString('hex')}.${extension}`;
-        const filepath = join(__dirname, '../uploads', 'videos', filename);
-
-        // Ensure directory exists
-        const videosDir = join(__dirname, '../uploads', 'videos');
-        if (!fs.existsSync(videosDir)) {
-            fs.mkdirSync(videosDir, { recursive: true });
+        if (!uploadResult.success) {
+            return res.status(500).json({ 
+                message: 'Failed to upload video to Cloudinary', 
+                error: uploadResult.error 
+            });
         }
 
-        // Save video file to disk
-        fs.writeFileSync(filepath, Buffer.from(base64Data, 'base64'));
-
-        // Store only the URL reference in MongoDB (not the video data)
-        const videoUrl = `/uploads/videos/${filename}`;
-
+        // Store video with Cloudinary URLs in MongoDB
         const video = new VideoGallery({
             title: title || 'Uploaded video',
             description,
-            src: videoUrl,  // Store URL, not base64
+            src: uploadResult.url,  // Cloudinary URL
             type: 'uploaded',
-            thumbnail,
+            thumbnail: thumbnail || uploadResult.thumbnailUrl,  // Use Cloudinary thumbnail if not provided
             category: category,
             order: order || 0,
             isActive: isActive !== false,
             year: year || '2025-26',
-            mimeType,
-            filename  // Store filename for deletion
+            cloudinaryId: uploadResult.publicId,
+            cloudinaryUrls: {
+                thumbnail: uploadResult.thumbnailUrl,
+                sd: uploadResult.sdUrl,
+                hd: uploadResult.hdUrl,
+                original: uploadResult.url
+            }
         });
         await video.save();
 
-        // Return video without large data
-        res.status(201).json({
-            _id: video._id,
-            title: video.title,
-            description: video.description,
-            src: video.src,
-            type: video.type,
-            thumbnail: video.thumbnail,
-            category: video.category,
-            order: video.order,
-            isActive: video.isActive,
-            createdAt: video.createdAt
-        });
+        res.status(201).json(video);
     } catch (error) {
         console.error('Error uploading video to gallery:', error);
         res.status(400).json({ message: 'Error uploading video to gallery', error: error.message });
@@ -185,8 +188,12 @@ router.delete('/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ message: 'Video not found' });
         }
 
-        // If it's an uploaded video, delete the file from disk
-        if (video.type === 'uploaded' && video.filename) {
+        // If it's a Cloudinary video, delete from Cloudinary
+        if (video.cloudinaryId) {
+            await deleteFromCloudinary(video.cloudinaryId);
+        }
+        // Legacy: If it's an uploaded video on disk, delete the file
+        else if (video.type === 'uploaded' && video.filename) {
             const filepath = join(__dirname, '../uploads', 'videos', video.filename);
             if (fs.existsSync(filepath)) {
                 fs.unlinkSync(filepath);

@@ -1,13 +1,7 @@
 import express from 'express';
 import Image from '../models/Image.js';
 import authMiddleware from '../middleware/authMiddleware.js';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import fs from 'fs';
-import crypto from 'crypto';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { uploadToCloudinary, deleteFromCloudinary, extractPublicId, isCloudinaryUrl, getResponsiveUrls } from '../utils/cloudinary.js';
 
 const router = express.Router();
 
@@ -49,11 +43,12 @@ router.get('/admin', authMiddleware, async (req, res) => {
 // server.js had POST /api/admin/images for URL and POST /api/admin/images/upload for base64
 // I will keep them separate as per original structure but under this router.
 
-// Add image (URL)
+// Add image (URL) - Auto-detects Cloudinary URLs and generates optimized versions
 router.post('/', authMiddleware, async (req, res) => {
     try {
         const { src, alt, order, isActive, isUploaded, mimeType, category } = req.body;
-        const image = new Image({
+        
+        const imageData = {
             src,
             alt,
             order: order || 0,
@@ -61,7 +56,19 @@ router.post('/', authMiddleware, async (req, res) => {
             isUploaded: isUploaded || false,
             mimeType: mimeType || null,
             category: category || 'home'
-        });
+        };
+
+        // Auto-detect Cloudinary URLs and generate optimized versions
+        if (isCloudinaryUrl(src)) {
+            const publicId = extractPublicId(src);
+            if (publicId) {
+                imageData.cloudinaryId = publicId;
+                imageData.cloudinaryUrls = getResponsiveUrls(publicId);
+                console.log(`✅ Auto-detected Cloudinary carousel image: ${publicId}`);
+            }
+        }
+
+        const image = new Image(imageData);
         await image.save();
         res.status(201).json(image);
     } catch (error) {
@@ -69,7 +76,7 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 });
 
-// Upload image - saves to disk
+// Upload image - uses Cloudinary CDN
 router.post('/upload', authMiddleware, async (req, res) => {
     try {
         const { imageData, alt, order, isActive, category } = req.body;
@@ -78,51 +85,54 @@ router.post('/upload', authMiddleware, async (req, res) => {
             return res.status(400).json({ message: 'Invalid image data. Must be base64 encoded image.' });
         }
 
-        // Extract mime type and extension
-        const mimeMatch = imageData.match(/^data:(image\/(\w+));base64,/);
-        const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-        const extension = mimeMatch ? mimeMatch[2] : 'jpg';
-        const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+        // Upload to Cloudinary with automatic optimization
+        const cloudinaryFolder = `schoolweb/carousel/${category || 'home'}`;
+        const uploadResult = await uploadToCloudinary(imageData, cloudinaryFolder, {
+            public_id: `carousel_${Date.now()}`,
+            resource_type: 'image'
+        });
 
-        // Generate unique filename
-        const filename = `img_${Date.now()}_${crypto.randomBytes(8).toString('hex')}.${extension}`;
-        // Adjusted path: ../uploads from routes directory
-        const filepath = join(__dirname, '../uploads', 'images', filename);
-
-        // Ensure directory exists (server.js did this on startup, but robust to check here or rely on init)
-        const imagesDir = join(__dirname, '../uploads', 'images');
-        if (!fs.existsSync(imagesDir)) {
-            fs.mkdirSync(imagesDir, { recursive: true });
+        if (!uploadResult.success) {
+            return res.status(500).json({ 
+                message: 'Failed to upload image to Cloudinary', 
+                error: uploadResult.error 
+            });
         }
 
-        // Save image file to disk
-        fs.writeFileSync(filepath, Buffer.from(base64Data, 'base64'));
-
-        // Store only the URL reference in MongoDB
-        const imageUrl = `/uploads/images/${filename}`;
-
+        // Store image with Cloudinary URLs in MongoDB
         const image = new Image({
-            src: imageUrl,
+            src: uploadResult.url, // Main Cloudinary URL
             alt: alt || 'Uploaded image',
             order: order || 0,
             isActive: isActive !== false,
             isUploaded: true,
-            mimeType,
-            filename,
+            cloudinaryId: uploadResult.publicId,
+            cloudinaryUrls: {
+                thumbnail: uploadResult.thumbnailUrl,
+                medium: uploadResult.mediumUrl,
+                large: uploadResult.largeUrl,
+                blur: uploadResult.blurUrl,
+                original: uploadResult.url
+            },
+            mimeType: `image/${uploadResult.format}`,
             category: category || 'home'
         });
+
         await image.save();
 
         res.status(201).json({
-            _id: image._id,
-            src: image.src,
-            alt: image.alt,
-            order: image.order,
-            isActive: image.isActive,
-            isUploaded: image.isUploaded,
-            mimeType: image.mimeType,
-            category: image.category,
-            createdAt: image.createdAt
+            message: 'Image uploaded successfully',
+            image: {
+                _id: image._id,
+                src: image.src,
+                alt: image.alt,
+                order: image.order,
+                isActive: image.isActive,
+                isUploaded: image.isUploaded,
+                cloudinaryUrls: image.cloudinaryUrls,
+                category: image.category,
+                createdAt: image.createdAt
+            }
         });
     } catch (error) {
         console.error('Error uploading image:', error);
@@ -148,11 +158,12 @@ router.delete('/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ message: 'Image not found' });
         }
 
-        // If it's an uploaded image, delete the file from disk
-        if (image.isUploaded && image.filename) {
-            const filepath = join(__dirname, '../uploads', 'images', image.filename);
-            if (fs.existsSync(filepath)) {
-                fs.unlinkSync(filepath);
+        // If it's a Cloudinary image, delete from Cloudinary
+        if (image.cloudinaryId) {
+            const deleteResult = await deleteFromCloudinary(image.cloudinaryId);
+            if (!deleteResult.success) {
+                console.warn('Failed to delete from Cloudinary:', deleteResult.error);
+                // Continue with database deletion even if Cloudinary delete fails
             }
         }
 

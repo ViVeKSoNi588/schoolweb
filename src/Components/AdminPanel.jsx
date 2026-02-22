@@ -61,6 +61,12 @@ function AdminPanel() {
   const [editingGalleryVideo, setEditingGalleryVideo] = useState(null);
   const [galleryUploadMode, setGalleryUploadMode] = useState('url'); // 'url' or 'upload'
   const [galleryUploadPreview, setGalleryUploadPreview] = useState('');
+  const [galleryPhotoUploading, setGalleryPhotoUploading] = useState(false);
+  const [galleryPhotoUploadProgress, setGalleryPhotoUploadProgress] = useState(0);
+  const [galleryVideoUploadMode, setGalleryVideoUploadMode] = useState('url'); // 'url' or 'upload'
+  const [galleryVideoUploadPreview, setGalleryVideoUploadPreview] = useState('');
+  const [galleryVideoUploading, setGalleryVideoUploading] = useState(false);
+  const [galleryVideoUploadProgress, setGalleryVideoUploadProgress] = useState(0);
   const [galleryCategory, setGalleryCategory] = useState('all'); // filter for viewing
 
   // Curriculum management
@@ -1228,6 +1234,19 @@ function AdminPanel() {
                         )}
                       </button>
                     </div>
+                    
+                    {/* Progress Bar */}
+                    {imageUploading && uploadMode === 'upload' && (
+                      <div className="mt-2">
+                        <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="bg-green-500 h-full transition-all duration-300 animate-pulse"
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 text-center">Uploading to Cloudinary...</p>
+                      </div>
+                    )}
                   </form>
 
                   {/* Images Grid */}
@@ -2353,41 +2372,83 @@ function AdminPanel() {
                         </button>
                       </>
                     ) : (
-                      <button
-                        onClick={async () => {
-                          if (!newGalleryPhoto.src || !newGalleryPhoto.title) {
-                            alert('Please provide image and title');
-                            return;
-                          }
-                          try {
-                            const endpoint = galleryUploadMode === 'upload' 
-                              ? `${API_URL}/admin/gallery/upload`
-                              : `${API_URL}/admin/gallery`;
-                            const body = galleryUploadMode === 'upload'
-                              ? { imageData: newGalleryPhoto.src, ...newGalleryPhoto }
-                              : newGalleryPhoto;
+                      <>
+                        <button
+                          onClick={async () => {
+                            if (!newGalleryPhoto.src || !newGalleryPhoto.title) {
+                              alert('Please provide image and title');
+                              return;
+                            }
                             
-                            const res = await fetch(endpoint, {
-                              method: 'POST',
-                              headers: { 
-                                'Content-Type': 'application/json',
-                                Authorization: `Bearer ${token}` 
-                              },
-                              body: JSON.stringify(body)
-                            });
-                            if (res.ok) {
+                            setGalleryPhotoUploading(true);
+                            setGalleryPhotoUploadProgress(0);
+                            
+                            try {
+                              const endpoint = galleryUploadMode === 'upload' 
+                                ? `${API_URL}/admin/gallery/upload`
+                                : `${API_URL}/admin/gallery`;
+                              const body = galleryUploadMode === 'upload'
+                                ? { imageData: newGalleryPhoto.src, ...newGalleryPhoto }
+                                : newGalleryPhoto;
+                              
+                              // Use XMLHttpRequest for progress tracking
+                              await new Promise((resolve, reject) => {
+                                const xhr = new XMLHttpRequest();
+                                
+                                xhr.upload.addEventListener('progress', (e) => {
+                                  if (e.lengthComputable) {
+                                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                                    setGalleryPhotoUploadProgress(percentComplete);
+                                  }
+                                });
+                                
+                                xhr.addEventListener('load', () => {
+                                  if (xhr.status >= 200 && xhr.status < 300) {
+                                    resolve(xhr.response);
+                                  } else {
+                                    reject(new Error(`Upload failed with status ${xhr.status}`));
+                                  }
+                                });
+                                
+                                xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+                                
+                                xhr.open('POST', endpoint);
+                                xhr.setRequestHeader('Content-Type', 'application/json');
+                                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                                xhr.send(JSON.stringify(body));
+                              });
+                              
                               setNewGalleryPhoto({ src: '', title: '', category: 'events', description: '', order: 0, isActive: true, year: '2025-26' });
                               setGalleryUploadPreview('');
+                              setGalleryPhotoUploadProgress(0);
                               fetchGalleryPhotos();
+                            } catch (error) {
+                              console.error('Error adding photo:', error);
+                              alert('Upload failed. Please try again.');
+                            } finally {
+                              setGalleryPhotoUploading(false);
                             }
-                          } catch (error) {
-                            console.error('Error adding photo:', error);
-                          }
-                        }}
-                        className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-medium transition-colors"
-                      >
-                        ➕ Add Photo
-                      </button>
+                          }}
+                          disabled={galleryPhotoUploading}
+                          className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {galleryPhotoUploading ? (
+                            <span>📤 Uploading... {galleryPhotoUploadProgress}%</span>
+                          ) : (
+                            '➕ Add Photo'
+                          )}
+                        </button>
+                        
+                        {/* Progress Bar */}
+                        {galleryPhotoUploading && (
+                          <div className="w-full bg-gray-700 rounded-full h-2 mt-2 overflow-hidden">
+                            <div 
+                              className="bg-blue-500 h-full transition-all duration-300"
+                              style={{ width: `${galleryPhotoUploadProgress}%` }}
+                            />
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </>
@@ -2400,28 +2461,94 @@ function AdminPanel() {
                     {editingGalleryVideo ? '✏️ Edit Video' : '➕ Add New Video'}
                   </h3>
 
-                  <select
-                    value={newGalleryVideo.type}
-                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, type: e.target.value })}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
-                  >
-                    <option value="youtube">🎥 YouTube</option>
-                    <option value="url">🔗 Video URL</option>
-                    <option value="facebook">📘 Facebook</option>
-                    <option value="vimeo">📹 Vimeo</option>
-                    <option value="instagram">📸 Instagram</option>
-                  </select>
+                  {/* Upload Mode Toggle */}
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={() => { setGalleryVideoUploadMode('url'); setGalleryVideoUploadPreview(''); }}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        galleryVideoUploadMode === 'url' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      🔗 URL
+                    </button>
+                    <button
+                      onClick={() => { setGalleryVideoUploadMode('upload'); setNewGalleryVideo(prev => ({ ...prev, src: '', type: 'uploaded' })); }}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        galleryVideoUploadMode === 'upload' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      📤 Upload
+                    </button>
+                  </div>
 
-                  <input
-                    type="text"
-                    placeholder={`${newGalleryVideo.type === 'youtube' ? 'YouTube' : 'Video'} URL *`}
-                    value={newGalleryVideo.src}
-                    onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, src: e.target.value })}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
-                  />
+                  {galleryVideoUploadMode === 'url' ? (
+                    <>
+                      <select
+                        value={newGalleryVideo.type}
+                        onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, type: e.target.value })}
+                        className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+                      >
+                        <option value="youtube">🎥 YouTube</option>
+                        <option value="url">🔗 Video URL</option>
+                        <option value="facebook">📘 Facebook</option>
+                        <option value="vimeo">📹 Vimeo</option>
+                        <option value="instagram">📸 Instagram</option>
+                      </select>
 
-                  {/* Video Preview */}
-                  {newGalleryVideo.src && (() => {
+                      <input
+                        type="text"
+                        placeholder={`${newGalleryVideo.type === 'youtube' ? 'YouTube' : 'Video'} URL *`}
+                        value={newGalleryVideo.src}
+                        onChange={(e) => setNewGalleryVideo({ ...newGalleryVideo, src: e.target.value })}
+                        className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3"
+                      />
+                    </>
+                  ) : (
+                    <div className="mb-3">
+                      <label className="block w-full bg-gray-700 text-white p-3 rounded-lg cursor-pointer hover:bg-gray-600 transition-colors text-center">
+                        🎥 Choose Video File (MP4, WebM, MOV)
+                        <input
+                          type="file"
+                          accept="video/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              // Check file size (max 100MB for Cloudinary free tier)
+                              const maxSize = 100 * 1024 * 1024; // 100MB
+                              if (file.size > maxSize) {
+                                alert('Video file is too large. Maximum size is 100MB.');
+                                return;
+                              }
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setGalleryVideoUploadPreview(URL.createObjectURL(file));
+                                setNewGalleryVideo({ ...newGalleryVideo, src: reader.result, type: 'uploaded' });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                      {galleryVideoUploadPreview && (
+                        <div className="mt-3">
+                          <p className="text-gray-400 text-sm mb-2">Preview:</p>
+                          <video 
+                            src={galleryVideoUploadPreview}
+                            controls
+                            className="w-full rounded-lg max-h-64"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Video Preview for URL mode */}
+                  {galleryVideoUploadMode === 'url' && newGalleryVideo.src && (() => {
                     const renderVideoPreview = () => {
                       const url = newGalleryVideo.src;
                       const type = newGalleryVideo.type;
@@ -2609,6 +2736,7 @@ function AdminPanel() {
                               if (res.ok) {
                                 setEditingGalleryVideo(null);
                                 setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true, year: '2025-26' });
+                                setGalleryVideoUploadPreview('');
                                 fetchGalleryVideos();
                               }
                             } catch (error) {
@@ -2623,6 +2751,7 @@ function AdminPanel() {
                           onClick={() => {
                             setEditingGalleryVideo(null);
                             setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true, year: '2025-26' });
+                            setGalleryVideoUploadPreview('');
                           }}
                           className="flex-1 bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-medium transition-colors"
                         >
@@ -2630,33 +2759,83 @@ function AdminPanel() {
                         </button>
                       </>
                     ) : (
-                      <button
-                        onClick={async () => {
-                          if (!newGalleryVideo.src || !newGalleryVideo.title) {
-                            alert('Please provide video URL and title');
-                            return;
-                          }
-                          try {
-                            const res = await fetch(`${API_URL}/admin/video-gallery`, {
-                              method: 'POST',
-                              headers: { 
-                                'Content-Type': 'application/json',
-                                Authorization: `Bearer ${token}` 
-                              },
-                              body: JSON.stringify(newGalleryVideo)
-                            });
-                            if (res.ok) {
-                              setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true, year: '2025-26' });
-                              fetchGalleryVideos();
+                      <>
+                        <button
+                          onClick={async () => {
+                            if (!newGalleryVideo.src || !newGalleryVideo.title) {
+                              alert('Please provide video and title');
+                              return;
                             }
-                          } catch (error) {
-                            console.error('Error adding video:', error);
-                          }
-                        }}
-                        className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-medium transition-colors"
-                      >
-                        ➕ Add Video
-                      </button>
+                            
+                            setGalleryVideoUploading(true);
+                            setGalleryVideoUploadProgress(0);
+                            
+                            try {
+                              const endpoint = galleryVideoUploadMode === 'upload' 
+                                ? `${API_URL}/admin/video-gallery/upload`
+                                : `${API_URL}/admin/video-gallery`;
+                              const body = galleryVideoUploadMode === 'upload'
+                                ? { videoData: newGalleryVideo.src, ...newGalleryVideo }
+                                : newGalleryVideo;
+                              
+                              // Use XMLHttpRequest for progress tracking
+                              await new Promise((resolve, reject) => {
+                                const xhr = new XMLHttpRequest();
+                                
+                                xhr.upload.addEventListener('progress', (e) => {
+                                  if (e.lengthComputable) {
+                                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                                    setGalleryVideoUploadProgress(percentComplete);
+                                  }
+                                });
+                                
+                                xhr.addEventListener('load', () => {
+                                  if (xhr.status >= 200 && xhr.status < 300) {
+                                    resolve(xhr.response);
+                                  } else {
+                                    reject(new Error(`Upload failed with status ${xhr.status}`));
+                                  }
+                                });
+                                
+                                xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+                                
+                                xhr.open('POST', endpoint);
+                                xhr.setRequestHeader('Content-Type', 'application/json');
+                                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                                xhr.send(JSON.stringify(body));
+                              });
+                              
+                              setNewGalleryVideo({ src: '', title: '', category: 'events', description: '', type: 'youtube', order: 0, isActive: true, year: '2025-26' });
+                              setGalleryVideoUploadPreview('');
+                              setGalleryVideoUploadProgress(0);
+                              fetchGalleryVideos();
+                            } catch (error) {
+                              console.error('Error adding video:', error);
+                              alert('Upload failed. Please try again.');
+                            } finally {
+                              setGalleryVideoUploading(false);
+                            }
+                          }}
+                          disabled={galleryVideoUploading}
+                          className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {galleryVideoUploading ? (
+                            <span>📤 Uploading... {galleryVideoUploadProgress}%</span>
+                          ) : (
+                            '➕ Add Video'
+                          )}
+                        </button>
+                        
+                        {/* Progress Bar */}
+                        {galleryVideoUploading && (
+                          <div className="w-full bg-gray-700 rounded-full h-2 mt-2 overflow-hidden">
+                            <div 
+                              className="bg-blue-500 h-full transition-all duration-300"
+                              style={{ width: `${galleryVideoUploadProgress}%` }}
+                            />
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </>

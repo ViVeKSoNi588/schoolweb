@@ -17,13 +17,30 @@ function ImageCarousel({ interval = 3000, category = '' }) {
 
   /**
    * ROOT CAUSE FIX: URL Normalizer
-   * This function identifies if the link is Google Drive, External, or Local
+   * This function identifies if the link is Google Drive, External, Local, or Cloudinary
    * and formats it correctly BEFORE the browser tries to request it.
+   * Supports optimized Cloudinary URLs for better performance.
    */
-  const cleanImageUrl = useCallback((image) => {
+  const cleanImageUrl = useCallback((image, size = 'large') => {
     if (!image) return '';
     
-    // Check all possible field names from MongoDB
+    // If cloudinaryUrls exist, use optimized URLs
+    if (image.cloudinaryUrls) {
+      switch(size) {
+        case 'thumbnail':
+          return image.cloudinaryUrls.thumbnail || image.src;
+        case 'medium':
+          return image.cloudinaryUrls.medium || image.src;
+        case 'large':
+          return image.cloudinaryUrls.large || image.src;
+        case 'blur':
+          return image.cloudinaryUrls.blur || image.src;
+        default:
+          return image.cloudinaryUrls.original || image.src;
+      }
+    }
+    
+    // Legacy support: check all possible field names from MongoDB
     let path = image.src || image.url || image.imageUrl || '';
     if (!path) return '';
 
