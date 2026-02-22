@@ -103,7 +103,7 @@ function Gallery() {
     { id: 'Republic', name: 'Republic Day', icon: '🎭' },
     { id: 'classroom', name: 'Classroom Activities', icon: '📚' },
     { id: 'campus', name: 'Campus', icon: '🏫' },
-    { id: 'other', name: 'Other Moments', icon: '✨' },
+    
   ];
 
   const openLightbox = (image) => {
