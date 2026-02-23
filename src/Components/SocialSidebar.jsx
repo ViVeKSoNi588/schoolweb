@@ -31,9 +31,7 @@ const socialLinks = [
 
 const SocialSidebar = () => {
     return (
-        <>
-        {/* Desktop: vertical sidebar on the left */}
-        <div className="fixed left-4 top-2/3 -translate-y-1/2 z-50 hidden md:flex flex-col gap-2">
+        <div className="fixed left-2 md:left-4 top-2/3 -translate-y-1/2 z-50 flex flex-col gap-1.5 md:gap-2">
             {socialLinks.map((link) => (
                 <a
                     key={link.label}
@@ -41,38 +39,12 @@ const SocialSidebar = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={link.label}
-                    className={`w-10 h-10 ${link.className} rounded-xl flex items-center justify-center text-white shadow-md hover:scale-110 transition-all`}
+                    className={`w-7 h-7 md:w-10 md:h-10 ${link.className} rounded-lg md:rounded-xl flex items-center justify-center text-white shadow-md hover:scale-110 active:scale-95 transition-all [&>svg]:w-3.5 [&>svg]:h-3.5 md:[&>svg]:w-5 md:[&>svg]:h-5`}
                 >
                     {link.icon}
                 </a>
             ))}
         </div>
-
-        {/* Mobile: fixed bottom bar */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden items-center justify-around bg-white/90 backdrop-blur-sm border-t border-gray-200 shadow-lg py-2 px-4">
-            {socialLinks.map((link) => (
-                <a
-                    key={link.label}
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={link.label}
-                    className={`w-11 h-11 ${link.className} rounded-xl flex items-center justify-center text-white shadow-md active:scale-95 transition-all`}
-                >
-                    {link.icon}
-                </a>
-            ))}
-            <a
-                href="tel:+919824994049"
-                aria-label="Call us"
-                className="w-11 h-11 bg-indigo-500 hover:bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md active:scale-95 transition-all"
-            >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24c1.12.37 2.33.57 3.58.57a1 1 0 011 1V20a1 1 0 01-1 1C10.18 21 3 13.82 3 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.46.57 3.58a1 1 0 01-.25 1.01l-2.2 2.2z" />
-                </svg>
-            </a>
-        </div>
-        </>
     );
 };
 
