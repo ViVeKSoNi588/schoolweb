@@ -6,4 +6,4 @@ Allow: /
 Disallow: /admin-secret-panel
 
 # Tell Google where your sitemap is
-Sitemap: https://vatsalyainternationalpre.com
+Sitemap: https://vatsalyainternationalpreschool.com/sitemap.xml
