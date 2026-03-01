@@ -16,6 +16,8 @@ const router = express.Router();
 router.get('/', async (req, res) => {
     try {
         const videos = await Video.find({ isActive: true }).sort({ order: 1 });
+        // Cache for 5 minutes, allow stale for 60s while revalidating
+        res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
         res.json(videos);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching videos', error: error.message });

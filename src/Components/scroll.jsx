@@ -88,7 +88,17 @@ function ImageCarousel({ interval = 3000, category = '' }) {
   const formattedImages = useMemo(() => {
     return images.map(img => ({
       ...img,
-      displayUrl: cleanImageUrl(img, 'medium')
+      displayUrl: cleanImageUrl(img, 'medium'),
+      // LQIP: tiny blurred placeholder shown while real image loads
+      blurUrl: img.cloudinaryUrls?.blur ? cleanImageUrl(img, 'blur') : null,
+      // srcset for responsive loading — browser picks smallest fitting size
+      srcSet: img.cloudinaryUrls
+        ? [
+            img.cloudinaryUrls.thumbnail ? `${cleanImageUrl(img, 'thumbnail')} 400w` : '',
+            img.cloudinaryUrls.medium    ? `${cleanImageUrl(img, 'medium')} 800w`    : '',
+            img.cloudinaryUrls.large     ? `${cleanImageUrl(img, 'large')} 1920w`   : ''
+          ].filter(Boolean).join(', ')
+        : undefined
     }));
   }, [images, cleanImageUrl]);
 
@@ -158,19 +168,28 @@ function ImageCarousel({ interval = 3000, category = '' }) {
         style={{ transform: `translateX(-${currentIndex * 100}%)` }}
       >
         {formattedImages.map((image, index) => (
-          <div key={image._id || index} className="min-w-full flex items-center justify-center relative bg-black">
-            {/* Skeleton for individual image loading */}
-            {!loadedImages.has(index) && (
-              <div className="absolute inset-0 bg-gray-800 animate-pulse flex items-center justify-center">
-                <span className="text-gray-600 text-xs">Loading Image...</span>
-              </div>
+          <div
+            key={image._id || index}
+            className="min-w-full flex items-center justify-center relative bg-black"
+            // LQIP: show blurred thumbnail as background while real image loads
+            style={image.blurUrl && !loadedImages.has(index) ? {
+              backgroundImage: `url(${image.blurUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
+            } : {}}
+          >
+            {/* Fallback skeleton (only when no blur URL available) */}
+            {!loadedImages.has(index) && !image.blurUrl && (
+              <div className="absolute inset-0 bg-gray-800 animate-pulse" />
             )}
             
             <img
               src={image.displayUrl}
+              srcSet={image.srcSet || undefined}
+              sizes="100vw"
               alt={image.alt || 'Carousel Image'}
               loading={index === 0 ? 'eager' : 'lazy'}
-              fetchpriority={index === 0 ? 'high' : 'low'}
+              fetchPriority={index === 0 ? 'high' : 'low'}
               decoding="async"
               onLoad={() => handleImageLoad(index)}
               className={`w-full object-cover transition-opacity duration-500 ${

@@ -23,6 +23,8 @@ router.get('/', async (req, res) => {
             }
         }
         const images = await Image.find(filter).sort({ order: 1 });
+        // Cache for 5 minutes, allow stale for 60s while revalidating
+        res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
         res.json(images);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching images', error: error.message });
