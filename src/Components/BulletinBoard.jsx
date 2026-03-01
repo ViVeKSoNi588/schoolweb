@@ -37,11 +37,38 @@ function BulletinBoard({ className = '' }) {
       setAnnouncements(cached);
       setLoading(false);
     }
-    fetch(`${API_URL}/admin/content?collection=announcements`)
-      .then(r => r.ok ? r.json() : [])
+    // Public endpoint — no auth needed
+    fetch(`${API_URL}/content/announcements`)
+      .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (data.length > 0) { setCache(data); setAnnouncements(data); }
-        else if (!cached || cached.length === 0) setAnnouncements(defaultAnnouncements);
+        // SiteContent returns { key, title, content, items: [...strings] }
+        // Each item string may be plain text, or "Title|Content|type" pipe-delimited
+        const items = data?.items;
+        if (Array.isArray(items) && items.length > 0) {
+          const parsed = items.map((item, i) => {
+            const parts = typeof item === 'string' ? item.split('|') : [];
+            if (parts.length >= 2) {
+              return {
+                _id: String(i),
+                title: parts[0].trim(),
+                content: parts[1].trim(),
+                type: (parts[2] || 'notice').trim(),
+                date: new Date().toISOString()
+              };
+            }
+            return {
+              _id: String(i),
+              title: 'Notice',
+              content: typeof item === 'string' ? item : JSON.stringify(item),
+              type: 'notice',
+              date: new Date().toISOString()
+            };
+          });
+          setCache(parsed);
+          setAnnouncements(parsed);
+        } else if (!cached || cached.length === 0) {
+          setAnnouncements(defaultAnnouncements);
+        }
       })
       .catch(() => { if (!cached || cached.length === 0) setAnnouncements(defaultAnnouncements); })
       .finally(() => setLoading(false));
