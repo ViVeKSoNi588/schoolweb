@@ -293,7 +293,7 @@ function AdminPanel() {
   const fetchVideos = async () => {
     try {
       setVideosLoading(true);
-      const res = await fetch(`${API_URL}/admin/videos`, {
+      const res = await fetch(`${API_URL}/admin/videos/admin`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -314,7 +314,7 @@ function AdminPanel() {
   // Fetch gallery photos
   const fetchGalleryPhotos = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/gallery`, {
+      const res = await fetch(`${API_URL}/admin/gallery/admin`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -329,7 +329,7 @@ function AdminPanel() {
   // Fetch gallery videos
   const fetchGalleryVideos = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/video-gallery`, {
+      const res = await fetch(`${API_URL}/admin/video-gallery/admin`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -344,7 +344,7 @@ function AdminPanel() {
   // Fetch curriculum data
   const fetchCurriculum = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/curriculum`, {
+      const res = await fetch(`${API_URL}/admin/curriculum/admin/all`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -359,7 +359,7 @@ function AdminPanel() {
   // Fetch annual events
   const fetchAnnualEvents = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/annual-events`, {
+      const res = await fetch(`${API_URL}/admin/annual-events/admin/all`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
