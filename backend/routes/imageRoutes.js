@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
                 filter.category = category;
             }
         }
-        const images = await Image.find(filter).sort({ order: 1 });
+        const images = await Image.find(filter).sort({ order: 1 }).lean();
         // Cache for 5 minutes, allow stale for 60s while revalidating
         res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
         res.json(images);

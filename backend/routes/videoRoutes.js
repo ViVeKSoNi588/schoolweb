@@ -15,7 +15,7 @@ const router = express.Router();
 // Get active videos (public)
 router.get('/', async (req, res) => {
     try {
-        const videos = await Video.find({ isActive: true }).sort({ order: 1 });
+        const videos = await Video.find({ isActive: true }).sort({ order: 1 }).lean();
         // Cache for 5 minutes, allow stale for 60s while revalidating
         res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
         res.json(videos);

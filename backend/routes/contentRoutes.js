@@ -4,20 +4,31 @@ import authMiddleware from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Get content by key (public)
+// Get all content (admin) — mounted at /api/admin/content → GET /api/admin/content
+router.get('/', authMiddleware, async (req, res) => {
+    try {
+        const content = await SiteContent.find().sort({ key: 1 }).lean();
+        res.json(content);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching content', error: error.message });
+    }
+});
+
+// Get content by key (public) — mounted at /api/content → GET /api/content/:key
 router.get('/:key', async (req, res) => {
     try {
-        const content = await SiteContent.findOne({ key: req.params.key, isActive: true });
+        const content = await SiteContent.findOne({ key: req.params.key, isActive: true }).lean();
+        res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
         res.json(content || { title: '', content: '', items: [] });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching content', error: error.message });
     }
 });
 
-// Get all content (admin)
+// Get all content (admin) — legacy path kept for backwards compat
 router.get('/admin/all', authMiddleware, async (req, res) => {
     try {
-        const content = await SiteContent.find().sort({ key: 1 });
+        const content = await SiteContent.find().sort({ key: 1 }).lean();
         res.json(content);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching content', error: error.message });
