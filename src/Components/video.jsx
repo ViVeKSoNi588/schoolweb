@@ -17,7 +17,7 @@ function setCache(data) {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch {}
 }
 
-function VideoPlayer() {
+function VideoPlayer({ initialData = null }) {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activatedVideos, setActivatedVideos] = useState(new Set());
@@ -31,6 +31,13 @@ function VideoPlayer() {
   }, []);
 
   useEffect(() => {
+    // If parent already fetched home data, use it directly (skip any network call)
+    if (initialData && initialData.length > 0) {
+      setCache(initialData);
+      setVideos(initialData);
+      setLoading(false);
+      return;
+    }
     const cached = getCache();
     if (cached) { setVideos(cached); setLoading(false); return; }
     fetch(`${API_URL}/videos`)
@@ -38,7 +45,7 @@ function VideoPlayer() {
       .then(data => { setVideos(data); setCache(data); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [initialData]);
 
   // Extract YouTube video ID from various URL formats
   const getYouTubeId = (url) => {

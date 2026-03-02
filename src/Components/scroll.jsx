@@ -25,7 +25,7 @@ function setCache(category, data) {
   try { localStorage.setItem(`${CACHE_KEY}_${category}`, JSON.stringify({ data, ts: Date.now() })); } catch {}
 }
 
-function ImageCarousel({ interval = 3000, category = '' }) {
+function ImageCarousel({ interval = 3000, category = '', initialData = null }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [images, setImages] = useState(DEFAULT_IMAGES);
   const [loading, setLoading] = useState(true);
@@ -109,6 +109,13 @@ function ImageCarousel({ interval = 3000, category = '' }) {
   // Fetch from MongoDB — with localStorage cache to skip cold starts on repeat visits
   useEffect(() => {
     const fetchImages = async () => {
+      // If parent already fetched home data, use it directly (skip any network call)
+      if (initialData && initialData.length > 0) {
+        setCache(category, initialData);
+        setImages(initialData);
+        setLoading(false);
+        return;
+      }
       // Serve cached data instantly, then refresh in background
       const cached = getCache(category);
       if (cached) {

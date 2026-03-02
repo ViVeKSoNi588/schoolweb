@@ -25,6 +25,7 @@ import galleryRoutes from './routes/galleryRoutes.js';
 import curriculumRoutes from './routes/curriculumRoutes.js';
 import eventRoutes from './routes/eventRoutes.js';
 import dbRoutes from './routes/dbRoutes.js';
+import homeRoutes from './routes/homeRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -62,7 +63,7 @@ try {
       fs.mkdirSync(dir, { recursive: true });
     }
   });
-} catch (error) {
+} catch (_error) {
   console.warn('⚠️ Warning: Could not create upload directories (likely read-only environment like Vercel). File uploads may not work.');
 }
 
@@ -125,6 +126,9 @@ app.use('/api/admin/curriculum', curriculumRoutes); // Admin: GET /admin/all, PO
 // Annual Event Routes
 app.use('/api/annual-events', eventRoutes);       // Public: GET /
 app.use('/api/admin/annual-events', eventRoutes); // Admin: GET /admin/all, POST /, PUT /:id, DELETE /:id
+
+// Home page — single endpoint returning all above-fold data in one request
+app.use('/api/home', homeRoutes);
 
 // Start Server
 if (process.env.NODE_ENV !== 'production') {
