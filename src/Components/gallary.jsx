@@ -1,27 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Navbar from './nav';
 import API_URL from '../config';
 
 // Get base URL without /api for static files
 const BASE_URL = API_URL.replace('/api', '');
-
-// ── Gallery cache (localStorage, 10-minute TTL) ──────────────────────────────
-const GALLERY_CACHE_KEY = 'vat_gallery_cache';
-const GALLERY_CACHE_TTL = 10 * 60 * 1000;
-
-function getGalleryCache() {
-  try {
-    const raw = localStorage.getItem(GALLERY_CACHE_KEY);
-    if (!raw) return null;
-    const { data, ts } = JSON.parse(raw);
-    if (Date.now() - ts > GALLERY_CACHE_TTL) { localStorage.removeItem(GALLERY_CACHE_KEY); return null; }
-    return data;
-  } catch { return null; }
-}
-function setGalleryCache(data) {
-  try { localStorage.setItem(GALLERY_CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch {}
-}
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Helper to get full image URL (supports legacy and Cloudinary)
 const getImageUrl = (image, size = 'original') => {
@@ -73,18 +55,8 @@ function Gallery() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedYear, setSelectedYear] = useState(getCurrentAcademicYear());
   const [selectedImage, setSelectedImage] = useState(null);
-  // allImages holds the full unfiltered list (cached); filtering is done client-side
-  const [allImages, setAllImages] = useState([]);
+  const [galleryImages, setGalleryImages] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Client-side filter — instant, no API call on category/year change
-  const galleryImages = useMemo(() => {
-    return allImages.filter(img => {
-      const categoryMatch = selectedCategory === 'all' || img.category === selectedCategory;
-      const yearMatch = selectedYear === 'all' || img.year === selectedYear;
-      return categoryMatch && yearMatch;
-    });
-  }, [allImages, selectedCategory, selectedYear]);
 
   // Handle body scroll lock when lightbox is open
   useEffect(() => {
@@ -98,23 +70,22 @@ function Gallery() {
     };
   }, [selectedImage]);
 
-  // Fetch ALL gallery images once — use localStorage cache to avoid re-fetching
+  // Fetch gallery images from database
   useEffect(() => {
     const fetchGallery = async () => {
-      // Serve from cache instantly if available
-      const cached = getGalleryCache();
-      if (cached) {
-        setAllImages(cached);
-        setLoading(false);
-        return;
-      }
       try {
         setLoading(true);
-        // Fetch all items (no filter) so we can cache once and filter client-side
-        const response = await fetch(`${API_URL}/gallery`);
+        const params = new URLSearchParams();
+        if (selectedCategory !== 'all') {
+          params.append('category', selectedCategory);
+        }
+        if (selectedYear !== 'all') {
+          params.append('year', selectedYear);
+        }
+        const url = `${API_URL}/gallery${params.toString() ? '?' + params.toString() : ''}`;
+        const response = await fetch(url);
         const data = await response.json();
-        setAllImages(data);
-        setGalleryCache(data);
+        setGalleryImages(data);
       } catch (error) {
         console.error('Error fetching gallery:', error);
       } finally {
@@ -122,7 +93,7 @@ function Gallery() {
       }
     };
     fetchGallery();
-  }, []); // ← runs only once on mount
+  }, [selectedCategory, selectedYear]);
 
   // Gallery categories
   const categories = [
@@ -234,22 +205,11 @@ function Gallery() {
                   className="group relative aspect-[4/3] rounded-2xl overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
-                  {/* Blur placeholder shown instantly; replaced by thumbnail once loaded */}
-                  {getImageUrl(image, 'blur') && (
-                    <img
-                      src={getImageUrl(image, 'blur')}
-                      aria-hidden="true"
-                      className="absolute inset-0 w-full h-full object-cover scale-110 blur-sm"
-                    />
-                  )}
                   <img
                     src={getImageUrl(image, 'thumbnail')}
                     alt={image.title}
                     loading="lazy"
-                    className="relative w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
-                    onLoad={(e) => e.currentTarget.classList.add('opacity-100')}
-                    style={{ opacity: 0, transition: 'opacity 0.4s ease, transform 0.7s ease' }}
-                    onLoadStart={(e) => e.currentTarget.style.opacity = '0'}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   />
                   
                   {/* Overlay */}
