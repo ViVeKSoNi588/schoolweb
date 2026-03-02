@@ -34,6 +34,10 @@ dotenv.config({ path: join(__dirname, '.env') });
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Kick off DB connection immediately at module load so it warms up
+// during the cold start rather than waiting for the first request.
+connectDB().catch((err) => console.error('Initial DB connect failed:', err.message));
+
 // Middleware
 // compression is skipped on Vercel — their CDN handles gzip at the edge automatically
 if (process.env.VERCEL !== '1') {
@@ -77,6 +81,12 @@ app.use(async (req, res, next) => {
 if (process.env.VERCEL !== '1') {
   startCleanupJob();
 }
+
+// Keep-warm health endpoint — pinged by Vercel cron every 5 minutes
+// to prevent the serverless function from going fully cold.
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Routes
 app.use('/api/admin', adminRoutes); // Login, Setup, Verify, Reset
